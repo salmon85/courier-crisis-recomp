@@ -1,0 +1,25 @@
+{
+  "game": {
+    "id": "SLUS-00442",
+    "name": "Courier Crisis",
+    "output": "../generated"
+  },
+  "cue": "../../Courier Crisis (USA).cue",
+  "funcMap": "funcmaps/main.json",
+  "linearSweep": true,
+  "overlays": [
+    {
+      "name": "game",
+      "funcMap": "funcmaps/game.json",
+      "base": "0x80010000",
+      "file": "GAME.EXE",
+      "skip": 2048,
+      "functions": [
+        {
+          "address": "80086334"
+        }
+      ]
+    }
+  ],
+  "debug": true
+}

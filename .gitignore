@@ -1,0 +1,20 @@
+# Disc images (bring your own copy)
+*.bin
+*.cue
+
+# RecompOne is its own git repository / upstream clone
+RecompOne/
+
+# Recompiled output and build artifacts (regenerate from your disc)
+CourierCrisisPort/generated/
+CourierCrisisPort/bin/
+CourierCrisisPort/obj/
+
+# Runtime state
+CourierCrisisPort/packs/
+CourierCrisisPort/mods/
+CourierCrisisPort/*.log
+CourierCrisisPort/settings.json
+CourierCrisisPort/interface.ini
+CourierCrisisPort/carda.sav
+CourierCrisisPort/cardb.sav

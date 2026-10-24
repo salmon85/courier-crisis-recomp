@@ -1,0 +1,98 @@
+diff --git a/RecompOne.Recompiler/CodeGen/SdkPatches.cs b/RecompOne.Recompiler/CodeGen/SdkPatches.cs
+index 211bd81..317261b 100644
+--- a/RecompOne.Recompiler/CodeGen/SdkPatches.cs
++++ b/RecompOne.Recompiler/CodeGen/SdkPatches.cs
+@@ -29,7 +29,7 @@ public static class SdkPatches
+         }),
+         ("libgpu", "RecompOne.Runtime.Sdk.LibGpu", new[]
+         {
+-            "DrawOTag", "DrawPrim", "DrawSync", "PutDrawEnv", "PutDispEnv",
++            "DrawOTag", "DrawPrim", "DrawSync", "DrawSyncCallback", "PutDrawEnv", "PutDispEnv",
+             "LoadImage", "StoreImage", "MoveImage", "ClearImage",
+             "SetVideoMode", "GetVideoMode"
+         }),
+diff --git a/RecompOne.Runtime/Bios/BiosB.cs b/RecompOne.Runtime/Bios/BiosB.cs
+index 1239e9d..1e44fae 100644
+--- a/RecompOne.Runtime/Bios/BiosB.cs
++++ b/RecompOne.Runtime/Bios/BiosB.cs
+@@ -316,6 +316,10 @@ public static class BiosB
+         swapped = FirePad(m, 0, swapped);
+         swapped2 = FirePad(m, 1, swapped2);
+         m.WriteU32(_padBuf, ((uint)swapped2 << 16) | swapped);
++
++        // A digital pad's buffer is only 4 bytes; games from that era place globals directly after it.
++        // Only expose the analog stick bytes when the configured pad is actually analog.
++        if (!Hardware.Controller.Analog) return;
+         m.WriteU8(_padBuf + 4, Hardware.Controller.RightX);
+         m.WriteU8(_padBuf + 5, Hardware.Controller.RightY);
+         m.WriteU8(_padBuf + 6, Hardware.Controller.LeftX);
+diff --git a/RecompOne.Runtime/sdk/LibGpu.cs b/RecompOne.Runtime/sdk/LibGpu.cs
+index 02698c7..f635ae0 100644
+--- a/RecompOne.Runtime/sdk/LibGpu.cs
++++ b/RecompOne.Runtime/sdk/LibGpu.cs
+@@ -43,15 +43,22 @@ public static class LibGpu
+             addr = next & Runtime.RamWordMask;
+         }
+ 
+-        if (!touched) return;
+-        gpu.EmitCustomRemaining(forward);
+-        GpuPrims.Clear();
++        if (touched)
++        {
++            gpu.EmitCustomRemaining(forward);
++            GpuPrims.Clear();
++        }
++
++        // The GPU completes submitted work synchronously in this runtime, so the DMA
++        // completion callback registered through DrawSyncCallback fires right here.
++        InvokeDrawSyncCallback(c, m);
+     }
+ 
+     public static void DrawPrim(CpuContext c, IMemory m)
+     {
+         if (Runtime.Gpu is not { } gpu) return;
+         Submit(gpu, m, c.A0 + 4u, (int)(m.ReadU32(c.A0) >> 24));
++        InvokeDrawSyncCallback(c, m);
+     }
+ 
+     private static void Submit(Gpu gpu, IMemory m, uint address, int count)
+@@ -67,11 +74,39 @@ public static class LibGpu
+         gpu.WriteGp0Packet(packet, address);
+     }
+ 
++    private static uint _drawSyncCallback;
++
++    public static void DrawSyncCallback(CpuContext c, IMemory m)
++    {
++        var previous = _drawSyncCallback;
++        _drawSyncCallback = c.A0;
++        c.V0 = previous;
++    }
++
+     public static void DrawSync(CpuContext c, IMemory m)
+     {
++        // The runtime GPU finishes every submitted packet synchronously, so a mode 0
++        // wait is already satisfied and the registered completion callback can run.
++        if (c.A0 == 0u) InvokeDrawSyncCallback(c, m);
+         c.V0 = 0;
+     }
+ 
++    private static void InvokeDrawSyncCallback(CpuContext c, IMemory m)
++    {
++        var callback = _drawSyncCallback;
++        if (callback == 0u || !Dispatch.Dispatcher.CanCall(callback)) return;
++
++        var snapshot = c.Snapshot();
++        try
++        {
++            Dispatch.Dispatcher.Call(c, m, callback);
++        }
++        finally
++        {
++            c.Restore(snapshot);
++        }
++    }
++
+     public static void PutDrawEnv(CpuContext c, IMemory m)
+     {
+         var gpu = Runtime.Gpu;

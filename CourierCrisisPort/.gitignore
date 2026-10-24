@@ -1,0 +1,10 @@
+bin/
+obj/
+generated/
+packs/
+mods/
+*.log
+settings.json
+interface.ini
+carda.sav
+cardb.sav
