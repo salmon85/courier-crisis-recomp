@@ -2,28 +2,34 @@
 
 - [x] Memory-card save crash (`_ExitCard` / missing BIOS C0 table)
 - [x] Main-menu selection forcing Start — fixed by the same BIOS C0 table fix
-- [x] Pause menu — confirmed not broken; no pause-menu changes
+- [x] Pause menu — confirmed not broken; no pause-menu changes needed
 - [x] In-level stopwatch frozen at ~2.70 s / never starts after restart
-- [x] Results screen ("Congratulations!!" / "You're a loser, punk!!") delay
 - [x] Draw-buffer deadlock during rapid menu transitions (`func_80012928`)
+- [x] "Camera" flashing to other angles during a level
+- [ ] Music
 
-Notes:
+## Camera flashing
 
-- **Stopwatch / restart / results screen** — `RecompOne 9a23556`. The CD
-  read-complete callback used to fire inside `CdRead`, before the caller had
-  armed its per-frame refill (`GP+0x7C8`); the completion handler is what
-  disarms it, so the game re-read the level header sector every ~150 frames
-  and zeroed the leg table at `0x800EE6B8`. The callback is now delivered
-  through the normal CD pump. Verified: the clock runs past 2.70 s, restarts
-  from the pause menu, and level-failed results appear within a frame.
-- **Draw-buffer deadlock** — `0x80012928` waits for a free buffer but the
-  buffer is only recycled by `func_80075CEC`, which normally runs from the
-  VBlank handler and requires a pending display flip to age two frames. The
-  wait loop never returns to `VSync`, so the flip can never be acknowledged.
-  `Patches.WaitDrawBuffer` (config patch in `config/Courier_Crisis.json`)
-  pumps the display release while waiting. Verified with repeated rapid
-  Z/S transitions.
-- **Target arrow** — re-tested at standstill and while moving; the HUD arrow
-  agrees with the compass/target marker in all runs after the CD fix.
-  The original "wrong until the player moves" symptom did not reproduce.
-  Needs a fresh report if it is still visible.
+The flash was not the camera: the display was being flipped to a stale
+framebuffer. The draw-buffer deadlock workaround pumped `func_80075CEC`
+(which calls `PutDispEnv`) every 4096 spins, which fires during normal
+one-frame waits as well. It now only steps in after 250 ms of continuous
+waiting, so normal frames never flip the display. Verified with 60 fps
+captures: no repeated/frozen frames.
+
+## Music — current findings
+
+- No CD-DA tracks in the image (single data track) and every sector is
+  Mode2/Form1 data (submode 0x08), so the runtime XA decoder is not the
+  path this game uses.
+- The frontend and level currently play only SPU-voice effects/engine
+  (14 voices, steady ~79 Hz engine tone); no music.
+- The game's music module requests track 114 through `func_8008217C`,
+  initialises the CD player (`func_800810C4`, Setmode 0x80) and issues
+  ReadS at LBA 40915 (inside `COURIER/MUSIC1/BIGDRI08.BIN`).
+- However its state word at `0x800B58F0` is 0 at every sample; it never
+  reaches the streaming states, so no music data is consumed or sent to
+  the SPU. Next step is to find what resets the state immediately after
+  `func_800810C4` sets it to 1 (candidates: the per-frame music update
+  `func_80081A8C`, `func_8007FAF0`, or the CD data-ready/ready callback
+  ordering in `func_80081B54`).
