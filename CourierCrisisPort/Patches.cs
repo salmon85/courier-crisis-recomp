@@ -35,7 +35,11 @@ public static class Patches
         c.SP = sp;
         mem.WriteU32(sp + 0x10u, c.RA);
 
-        var spins = 0;
+        // Waiting for the next VBlank (a few milliseconds) is normal, so only
+        // step in once the wait is clearly abnormal. Otherwise pumping the
+        // release here would flip the display mid-frame and show stale VRAM.
+        var start = RecompOne.Runtime.Interrupts.ClockMs;
+        var lastPump = start;
         while (true)
         {
             RecompOne.Runtime.Interrupts.Poll(c, m);
@@ -43,10 +47,9 @@ public static class Patches
             Dispatcher.Call(c, m, AcquireDrawBuffer);
             if (c.V0 != 0u) break;
 
-            // Roughly once per millisecond of spinning, run the display
-            // release task so a pending flip can complete.
-            if (++spins < 4096) continue;
-            spins = 0;
+            var now = RecompOne.Runtime.Interrupts.ClockMs;
+            if (now - start < 250.0 || now - lastPump < 250.0) continue;
+            lastPump = now;
             c.RA = 0x80075C1Cu;
             Dispatcher.Call(c, m, ReleaseDisplay);
         }
