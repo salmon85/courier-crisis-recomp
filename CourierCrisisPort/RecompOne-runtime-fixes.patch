@@ -146,7 +146,7 @@ index 02698c7..f635ae0 100644
          var gpu = Runtime.Gpu;
 
 diff --git a/RecompOne.Runtime/Hardware/Spu.cs b/RecompOne.Runtime/Hardware/Spu.cs
-index 081fb13..318d484 100644
+index 081fb13..259072f 100644
 --- a/RecompOne.Runtime/Hardware/Spu.cs
 +++ b/RecompOne.Runtime/Hardware/Spu.cs
 @@ -287,6 +287,8 @@ public sealed class Spu
@@ -199,10 +199,12 @@ index 081fb13..318d484 100644
          var addr = v.CurAddr & (uint)(RamSize - 1);
          var hdr = Ram[addr];
          var flags = Ram[(addr + 1) & (RamSize - 1)];
-@@ -800,6 +808,19 @@ public sealed class Spu
+@@ -800,6 +808,21 @@ public sealed class Spu
  
          v.CurAddr += 16;
  
++        // SPU IRQ: a voice reading ADPCM data at the IRQ address asserts IRQ9.
++        // libspu's SpuSt streaming engine uses this to refill its SPU buffers.
 +        if (_irqAddr != 0 && (_spucnt & 0x40) != 0 && !_irqPending)
 +        {
 +            var irqByte = (uint)_irqAddr << 3;
