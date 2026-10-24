@@ -77,6 +77,16 @@ music state reached 3, but the CD-ready callback `func_80081B54` never ran, the
 ring write pointer stayed 0, and the SPU played only the priming block.
 `LibCd.Detach` now calls `LibCdStream.Reset()` when a new executable is loaded.
 
+The initial stereo stream still had a rapid repeating stutter (the two ring
+pointers drifting apart). The music module's ready callback registers a
+per-sector `CdDataCallback` and consumes the sector with `CdGetSector`; the
+ready-only pump did not deliver that data callback for the same sector, so the
+producer pointer (`stream+8`) lagged the DMA consumer pointer (`stream+0xC`),
+and SpuSt replayed stale blocks. `LibCd.PumpReady` now delivers the data
+callback before advancing the position, and pumps several sectors per frame
+instead of one. With this, the ring occupancy stays near full (22–23 of 24
+blocks) and the captured music no longer contains repeated 40 ms blocks.
+
 
 Two address corrections:
 

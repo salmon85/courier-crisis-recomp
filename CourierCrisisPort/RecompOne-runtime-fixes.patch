@@ -230,6 +230,7 @@ index 081fb13..47b75f8 100644
          if ((flags & 1) != 0)
          {
              v.EndX = true;
+
 diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
 index 0621f19..b668a76 100644
 --- a/RecompOne.Runtime/sdk/LibCd.cs
@@ -242,3 +243,44 @@ index 0621f19..b668a76 100644
      }
  
      internal static void Reset()
+diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
+index b668a76..41b61d7 100644
+--- a/RecompOne.Runtime/sdk/LibCd.cs
++++ b/RecompOne.Runtime/sdk/LibCd.cs
+@@ -376,7 +376,10 @@ public static class LibCd
+             // callback and read the FIFO with CdGetSector. They often register
+             // and unregister their data callback per sector, so gating this on
+             // _readyOnlyRead alone stops the stream after the first sector.
+-            PumpReady(1);
++            // Allow several sectors per frame: a music stream consumes about
++            // 25 blocks/second per channel, so one sector/frame underruns at
++            // 30 fps.
++            PumpReady(8);
+             return;
+         }
+ 
+@@ -596,9 +599,23 @@ public static class LibCd
+                 c.A0 = DataReady;
+                 c.A1 = PublishStatus(m);
+                 Dispatcher.Call(c, m, _cbReady);
++
++                // The ready callback may have registered a per-sector data
++                // callback and filled its buffer with CdGetSector. Deliver the
++                // data callback for this sector before advancing the position,
++                // otherwise the producer/consumer ring pointers drift apart.
++                var queued = _cdDataPending;
++                if (queued && _cbData != 0)
++                {
++                    _cdDataPending = false;
++                    c.A0 = DataReady;
++                    c.A1 = PublishStatus(m);
++                    Dispatcher.Call(c, m, _cbData);
++                }
++
+                 AdvancePos(1);
+                 Dispatcher.LoadByLba(CurrentLba);
+-                if (!_cdDataPending) break;
++                if (!queued) break;
+             }
+         }
+         finally

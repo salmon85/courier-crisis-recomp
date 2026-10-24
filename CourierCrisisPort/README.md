@@ -97,6 +97,15 @@ generic fixes, not game-specific hacks beyond the pad-buffer layout:
    callback (`func_80081B54`) never ran and the music ring stayed empty.
    `LibCd.Detach` now resets the stream state when a new executable is loaded.
 
+7. **CD per-sector data callbacks / stream pacing** (`RecompOne.Runtime/sdk/LibCd.cs`)
+   When a ready callback registers a data callback and consumes the sector with
+   `CdGetSector` (as Courier Crisis's music module does), the data callback is
+   now delivered for that same sector before the position advances. Without
+   this, the ring producer pointer (`stream+8`) fell behind the DMA consumer
+   pointer (`stream+0xC`) and the SpuSt engine replayed stale blocks. The
+   ready-only pump also delivers several sectors per frame instead of one, so
+   the 24-block music rings stay full at 30–60 fps.
+
 `config/Courier_Crisis_debug.json` is a diagnostic variant that emits a
 per-function trace; expect it to run much slower and produce a large log.
 
