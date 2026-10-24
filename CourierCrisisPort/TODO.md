@@ -68,6 +68,16 @@ music state reaches 3/4, `ch4` DMA fetches every `0x400`-byte block from the two
 `0xC000` rings, the SPU music buffer contents change continuously, and the music
 voices run in ADSR Sustain at full volume.
 
+A second runtime issue only appears on the normal boot path (intro movie, then
+`LoadExec` of `GAME.EXE`). The boot executable uses libcd's stream ring
+(`StSetRing`/`StSetStream`) for the movie and does not tear it down before
+`LoadExec`. `LibCdStream` state is global, so the music module's `ReadS` was
+intercepted by the still-active movie stream: `GP[0x300]` reached 2 and the
+music state reached 3, but the CD-ready callback `func_80081B54` never ran, the
+ring write pointer stayed 0, and the SPU played only the priming block.
+`LibCd.Detach` now calls `LibCdStream.Reset()` when a new executable is loaded.
+
+
 Two address corrections:
 
 - The music stream state is `0x800AA710` (`0x800B0000 - 0x58F0`), not

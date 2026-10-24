@@ -89,6 +89,14 @@ generic fixes, not game-specific hacks beyond the pad-buffer layout:
    two 24-block RAM rings. With the IRQ in place the engine refills the SPU
    buffers from the rings and music plays.
 
+6. **CD streaming state across `LoadExec`** (`RecompOne.Runtime/sdk/LibCd.cs`)
+   The boot executable uses libcd's stream ring (`StSetRing`/`StSetStream`) for
+   the intro movie and never tears it down before loading `GAME.EXE`. Because
+   the runtime's `LibCdStream` state is global, the music module's later `ReadS`
+   was being intercepted by the still-active movie stream, so the CD-ready
+   callback (`func_80081B54`) never ran and the music ring stayed empty.
+   `LibCd.Detach` now resets the stream state when a new executable is loaded.
+
 `config/Courier_Crisis_debug.json` is a diagnostic variant that emits a
 per-function trace; expect it to run much slower and produce a large log.
 

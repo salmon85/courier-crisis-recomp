@@ -146,7 +146,7 @@ index 02698c7..f635ae0 100644
          var gpu = Runtime.Gpu;
 
 diff --git a/RecompOne.Runtime/Hardware/Spu.cs b/RecompOne.Runtime/Hardware/Spu.cs
-index 081fb13..259072f 100644
+index 081fb13..47b75f8 100644
 --- a/RecompOne.Runtime/Hardware/Spu.cs
 +++ b/RecompOne.Runtime/Hardware/Spu.cs
 @@ -287,6 +287,8 @@ public sealed class Spu
@@ -191,7 +191,15 @@ index 081fb13..259072f 100644
              case 0x1AC: _transferCtrl = val; break;
              case 0x1B0: _cdVolL = val; break;
              case 0x1B2: _cdVolR = val; break;
-@@ -775,6 +782,7 @@ public sealed class Spu
+@@ -645,6 +652,7 @@ public sealed class Spu
+                 }
+             }
+         }
++
+     }
+ 
+     private (short L, short R) Tick()
+@@ -775,6 +783,7 @@ public sealed class Spu
          v.Buf[1] = v.Buf[29];
          v.Buf[2] = v.Buf[30];
  
@@ -199,19 +207,20 @@ index 081fb13..259072f 100644
          var addr = v.CurAddr & (uint)(RamSize - 1);
          var hdr = Ram[addr];
          var flags = Ram[(addr + 1) & (RamSize - 1)];
-@@ -800,6 +808,21 @@ public sealed class Spu
+@@ -800,6 +809,22 @@ public sealed class Spu
  
          v.CurAddr += 16;
  
 +        // SPU IRQ: a voice reading ADPCM data at the IRQ address asserts IRQ9.
 +        // libspu's SpuSt streaming engine uses this to refill its SPU buffers.
-+        if (_irqAddr != 0 && (_spucnt & 0x40) != 0 && !_irqPending)
++        // Keep asserting while the condition holds: the first IRQ can be
++        // delivered before the game has registered its IRQ9 callback.
++        if (_irqAddr != 0 && (_spucnt & 0x40) != 0)
 +        {
 +            var irqByte = (uint)_irqAddr << 3;
 +            var newAddr = v.CurAddr & (uint)(RamSize - 1);
 +            var from = oldAddr & (uint)(RamSize - 1);
-+            if (newAddr == irqByte || from == irqByte ||
-+                (newAddr & ~7u) == irqByte || (from & ~7u) == irqByte)
++            if (newAddr == irqByte || from == irqByte)
 +            {
 +                _irqPending = true;
 +                Interrupts.Raise(9);
@@ -221,3 +230,15 @@ index 081fb13..259072f 100644
          if ((flags & 1) != 0)
          {
              v.EndX = true;
+diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
+index 0621f19..b668a76 100644
+--- a/RecompOne.Runtime/sdk/LibCd.cs
++++ b/RecompOne.Runtime/sdk/LibCd.cs
+@@ -1049,6 +1049,7 @@ public static class LibCd
+         }
+ 
+         LibDs.Detach();
++        LibCdStream.Reset();
+     }
+ 
+     internal static void Reset()
