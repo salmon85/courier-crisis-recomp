@@ -33,3 +33,12 @@ captures: no repeated/frozen frames.
   `func_800810C4` sets it to 1 (candidates: the per-frame music update
   `func_80081A8C`, `func_8007FAF0`, or the CD data-ready/ready callback
   ordering in `func_80081B54`).
+
+## Music — progress after the sector-delivery fix (`RecompOne ad75b89`)
+
+- The music module now reaches state 4 and its reader is serviced (46 sector
+  reads vs 10 before), but the track position still does not advance and no
+  music reaches the SPU yet.
+- Remaining lead: the per-sector data callback (`func_80081E28` at 0x80081E28)
+  still is not advancing the ring (`func_80081080`), so the stream stays at
+  LBA 40915. Also verify whether the boss speech uses the same ring.
