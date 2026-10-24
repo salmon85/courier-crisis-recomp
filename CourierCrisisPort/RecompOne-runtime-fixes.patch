@@ -12,10 +12,49 @@ index 211bd81..317261b 100644
              "SetVideoMode", "GetVideoMode"
          }),
 diff --git a/RecompOne.Runtime/Bios/BiosB.cs b/RecompOne.Runtime/Bios/BiosB.cs
-index 1239e9d..1e44fae 100644
+index 1239e9d..53332b9 100644
 --- a/RecompOne.Runtime/Bios/BiosB.cs
 +++ b/RecompOne.Runtime/Bios/BiosB.cs
-@@ -316,6 +316,10 @@ public static class BiosB
+@@ -59,6 +59,9 @@ public static class BiosB
+     private static bool _cardPadEnable;
+ 
+     private const uint B0TableAddr = 0x00000874u;
++    private const uint C0TableAddr = 0x00000674u;
++    private const int C0TableEntries = 0x80;
++    private const uint ExceptionHandlerAddr = 0x00000C80u;
+     private const uint KernelStubBase = 0x00006000u;
+     private const int B0TableEntries = 0xB0;
+     private const uint ChangeClearPadEntry = KernelStubBase + 0x5Bu * 4u;
+@@ -80,6 +83,28 @@ public static class BiosB
+         return B0TableAddr;
+     }
+ 
++    // The BIOS kernel keeps its C0 function table at 0x674. PsyQ libcard fetches
++    // it (B0 0x56) and patches the card hook at ExceptionHandler+0x70; _ExitCard
++    // restores that hook later. RecompOne executes BIOS calls in C#, so a small
++    // writable stand-in for the handler body is enough to keep those patches from
++    // writing through a null pointer.
++    public static uint GetC0Table(IMemory m)
++    {
++        for (var n = 0; n < C0TableEntries; n++)
++            m.WriteU32(C0TableAddr + (uint)n * 4u, 0u);
++
++        for (uint off = 0; off < 0x100u; off += 4u)
++            m.WriteU32(ExceptionHandlerAddr + off, 0u);
++
++        // These two words are read by _patch_card as a lui/addiu pair; encode a
++        // harmless continuation at 0x8000 for the copied hook trampoline.
++        m.WriteU32(ExceptionHandlerAddr + 0x70u, 0x3C0A0000u); // lui t2,0
++        m.WriteU32(ExceptionHandlerAddr + 0x74u, 0x254A7FD8u); // addiu t2,t2,0x7FD8
++        m.WriteU32(C0TableAddr + 6u * 4u, ExceptionHandlerAddr);
++
++        return C0TableAddr;
++    }
++
+     public static bool KernelStub(uint addr, out uint fn)
+     {
+         if (addr == PadInitStub)
+@@ -316,6 +341,10 @@ public static class BiosB
          swapped = FirePad(m, 0, swapped);
          swapped2 = FirePad(m, 1, swapped2);
          m.WriteU32(_padBuf, ((uint)swapped2 << 16) | swapped);
@@ -26,6 +65,15 @@ index 1239e9d..1e44fae 100644
          m.WriteU8(_padBuf + 4, Hardware.Controller.RightX);
          m.WriteU8(_padBuf + 5, Hardware.Controller.RightY);
          m.WriteU8(_padBuf + 6, Hardware.Controller.LeftX);
+@@ -514,7 +543,7 @@ public static class BiosB
+             case 0x53: c.V0 = KromFont.Krom2Offset(c.A0); break;
+             case 0x54: c.V0 = BiosA.LastErrno; break;
+             case 0x55: c.V0 = 0u; break;
+-            case 0x56: c.V0 = 0u; break;
++            case 0x56: c.V0 = GetC0Table(m); break;
+             case 0x57: c.V0 = GetB0Table(m); break;
+             case 0x58: break;
+             case 0x59: c.V0 = BiosA.TestDevice(m, c.A0); break;
 diff --git a/RecompOne.Runtime/sdk/LibGpu.cs b/RecompOne.Runtime/sdk/LibGpu.cs
 index 02698c7..f635ae0 100644
 --- a/RecompOne.Runtime/sdk/LibGpu.cs

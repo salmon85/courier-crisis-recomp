@@ -70,7 +70,14 @@ fixes, not game-specific hacks beyond the pad-buffer layout:
    Crisis uses this callback to release its double-buffered draw buffers; without
    it the game spins forever waiting for a free buffer.
 
-3. Both PAD ports are configured as `PadKind.Digital` in `Program.cs`, matching
+3. **BIOS C0 table / memory card cleanup** (`RecompOne.Runtime/Bios/BiosB.cs`)
+   `B0(0x56)` (`GetC0Table`) was returning zero. PsyQ libcard's `_ExitCard`
+   dereferences `C0Table[6]` (the exception handler) and patches its card hook,
+   so saving crashed while writing through a null-derived pointer. The runtime
+   now provides the real low-RAM C0 layout at `0x674` and a writable stand-in
+   exception handler at `0xC80`.
+
+4. Both PAD ports are configured as `PadKind.Digital` in `Program.cs`, matching
    the era of the game.
 
 `config/Courier_Crisis_debug.json` is a diagnostic variant that emits a
@@ -78,6 +85,22 @@ per-function trace; expect it to run much slower and produce a large log.
 
 The runtime fixes are also saved as `RecompOne-runtime-fixes.patch` so they can
 be re-applied if RecompOne is updated or re-cloned.
+
+## Known issues
+
+- The in-level stopwatch can stop after ~2.7 seconds (the display freezes while
+  the game keeps running). The same freeze is visible in attract/demo races, so
+  it is not tied to saved progress.
+- Some frontend selections (e.g. the BACK option) can start a level instead of
+  returning to the previous screen. The state dispatch table and the pad button
+  mapping have been verified as intact; the remaining cause is in the frontend
+  state logic.
+- The on-screen target arrow can point the wrong way until the player moves;
+  distant targets are worse. This appears to be in the same frontend/gameplay
+  state logic.
+- A draw-buffer wait can deadlock during rapid menu transitions (the game waits
+  in `func_80012928` for a buffer that was acquired but never submitted).
+- Loading the results screen after finishing a level is slow.
 
 ## Notes
 
