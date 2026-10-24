@@ -54,8 +54,8 @@ dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/game.cue" --direct
 
 ## Runtime fixes
 
-Three changes were required in RecompOne (`../RecompOne`). They are generic
-fixes, not game-specific hacks beyond the pad-buffer layout:
+The following changes were required in RecompOne (`../RecompOne`). They are
+generic fixes, not game-specific hacks beyond the pad-buffer layout:
 
 1. **Digital pad buffer size** (`RecompOne.Runtime/Bios/BiosB.cs`)
    `PadRead` always wrote four analog-stick bytes after the 4-byte button word.
@@ -79,6 +79,15 @@ fixes, not game-specific hacks beyond the pad-buffer layout:
 
 4. Both PAD ports are configured as `PadKind.Digital` in `Program.cs`, matching
    the era of the game.
+
+5. **SPU IRQ / SpuSt streaming** (`RecompOne.Runtime/Hardware/Spu.cs`)
+   The SPU now models the IRQ address register (`0x1F801DA4`), the SPUSTAT
+   IRQ-pending bit, and IRQ9 generation when a voice reads ADPCM data at the
+   IRQ address. Courier Crisis's CD music uses the libspu `SpuSt` streaming
+   engine, which parks in SpuSt state `0x32` after the first priming transfer
+   without this interrupt; `SpuStTransfer` never re-points the voices at the
+   two 24-block RAM rings. With the IRQ in place the engine refills the SPU
+   buffers from the rings and music plays.
 
 `config/Courier_Crisis_debug.json` is a diagnostic variant that emits a
 per-function trace; expect it to run much slower and produce a large log.

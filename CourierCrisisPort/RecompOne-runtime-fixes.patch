@@ -144,3 +144,78 @@ index 02698c7..f635ae0 100644
      public static void PutDrawEnv(CpuContext c, IMemory m)
      {
          var gpu = Runtime.Gpu;
+
+diff --git a/RecompOne.Runtime/Hardware/Spu.cs b/RecompOne.Runtime/Hardware/Spu.cs
+index 081fb13..318d484 100644
+--- a/RecompOne.Runtime/Hardware/Spu.cs
++++ b/RecompOne.Runtime/Hardware/Spu.cs
+@@ -287,6 +287,8 @@ public sealed class Spu
+     private uint _endx;
+     private ushort _spucnt;
+     private ushort _transferAddr;
++    private ushort _irqAddr;
++    private bool _irqPending;
+     private ushort _transferCtrl = 4;
+     private ushort _cdVolL, _cdVolR;
+     private ushort _extVolL, _extVolR;
+@@ -369,15 +371,16 @@ public sealed class Spu
+             0x19C => (ushort)(_endx & 0xFFFF),
+             0x19E => (ushort)(_endx >> 16),
+             0x1A2 => _reverbStartAddr,
+-            >= 0x1C0 and <= 0x1FE => _rev[(off - 0x1C0) >> 1],
++            0x1A4 => _irqAddr,
+             0x1A6 => _transferAddr,
+             0x1AA => _spucnt,
+             0x1AC => _transferCtrl,
+-            0x1AE => (ushort)(_spucnt & 0x3F),
++            0x1AE => (ushort)((_spucnt & 0x3F) | (_irqPending ? 0x40 : 0)),
+             0x1B0 => _cdVolL,
+             0x1B2 => _cdVolR,
+             0x1B4 => _extVolL,
+             0x1B6 => _extVolR,
++            >= 0x1C0 and <= 0x1FE => _rev[(off - 0x1C0) >> 1],
+             _ => 0
+         };
+     }
+@@ -446,8 +449,12 @@ public sealed class Spu
+             case 0x198: _eon = val; break;
+             case 0x19A: _eonHi = val; break;
+             case 0x1A2: _reverbStartAddr = val; break;
++            case 0x1A4: _irqAddr = val; break;
+             case 0x1A6: _transferAddr = val; break;
+-            case 0x1AA: _spucnt = val; break;
++            case 0x1AA:
++                _spucnt = val;
++                if ((val & 0x40) == 0) _irqPending = false;
++                break;
+             case 0x1AC: _transferCtrl = val; break;
+             case 0x1B0: _cdVolL = val; break;
+             case 0x1B2: _cdVolR = val; break;
+@@ -775,6 +782,7 @@ public sealed class Spu
+         v.Buf[1] = v.Buf[29];
+         v.Buf[2] = v.Buf[30];
+ 
++        var oldAddr = v.CurAddr;
+         var addr = v.CurAddr & (uint)(RamSize - 1);
+         var hdr = Ram[addr];
+         var flags = Ram[(addr + 1) & (RamSize - 1)];
+@@ -800,6 +808,19 @@ public sealed class Spu
+ 
+         v.CurAddr += 16;
+ 
++        if (_irqAddr != 0 && (_spucnt & 0x40) != 0 && !_irqPending)
++        {
++            var irqByte = (uint)_irqAddr << 3;
++            var newAddr = v.CurAddr & (uint)(RamSize - 1);
++            var from = oldAddr & (uint)(RamSize - 1);
++            if (newAddr == irqByte || from == irqByte ||
++                (newAddr & ~7u) == irqByte || (from & ~7u) == irqByte)
++            {
++                _irqPending = true;
++                Interrupts.Raise(9);
++            }
++        }
++
+         if ((flags & 1) != 0)
+         {
+             v.EndX = true;
