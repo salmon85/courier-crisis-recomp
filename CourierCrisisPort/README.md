@@ -188,6 +188,12 @@ be re-applied if RecompOne is updated or re-cloned.
 - A draw-buffer wait can deadlock during rapid menu transitions (the game waits
   in `func_80012928` for a buffer that was acquired but never submitted).
 - Loading the results screen after finishing a level is slow.
+- The EU attract/demo loop can crash after several demos. The EU demos are the
+  same recorded inputs as the USA version but play back at 50 Hz, so their
+  movement diverges (EU demo 7 corresponds roughly to USA demo 3). One of those
+  desynced demos eventually corrupts the audio voice list. Starting a game
+  before the attract loop reaches it avoids the crash; this is demo/replay
+  specific, not a general boot or gameplay failure.
 
 ## Notes
 

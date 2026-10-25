@@ -106,3 +106,11 @@ Two address corrections:
 The EU build uses `config/funcmaps/eu/` and `config/Courier_Crisis_EU.json`.
 `mainOverlay` keeps the EU dispatch tables (`main_eu`/`game_eu`) separate from
 the USA tables (`main`/`game`).
+
+## EU attract-demo crash
+
+- [ ] EU demo 7 (roughly USA demo 3) can crash after several minutes.
+- The EU build runs at 50 Hz; the recorded demo inputs desync from the USA
+  sequence (EU demo 2 has no USA equivalent, EU demo 3 is USA demo 2). The
+  desynced demo corrupts the audio voice list and then faults while walking it.
+- Starting a game before the attract loop reaches that demo avoids it.

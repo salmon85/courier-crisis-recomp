@@ -85,7 +85,7 @@ public static class Entry
         m.WriteU32(0x80180000u, (uint)master.Length);
 
         cd.LoadToMemory("GAME.EXE", 0x80010000u, 0x800, (int)exe.TextSize);
-        Dispatcher.Load(PortOptions.Region == DiscRegion.Europe ? "game_eu" : "game");
+        Dispatcher.Load("game");
 
         var c = new CpuContext
         {
@@ -125,7 +125,10 @@ public static class Entry
         {
 #if HAS_EU
             Dispatcher.Register("main_eu", new Main_euDispatchTable());
-            Dispatcher.Register("game_eu", new Game_euDispatchTable());
+            // The BIOS LoadExec path names overlays after the disc file
+            // (GAME.EXE -> "game"), so register the EU game table under that
+            // name as well. The generated type keeps the region-specific name.
+            Dispatcher.Register("game", new Game_euDispatchTable());
 #else
             throw new NotSupportedException(
                 "European recompiled code is missing. Run the recompiler with " +
