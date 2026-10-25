@@ -150,19 +150,15 @@ large log.
 
 ## Known issues
 
-- The in-level stopwatch can stop after ~2.7 seconds (the display freezes while
-  the game keeps running). The same freeze is visible in attract/demo races, so
-  it is not tied to saved progress.
-- Some frontend selections (e.g. the BACK option) can start a level instead of
-  returning to the previous screen. The state dispatch table and the pad button
-  mapping have been verified as intact; the remaining cause is in the frontend
-  state logic.
-- The on-screen target arrow can point the wrong way until the player moves;
-  distant targets are worse. This appears to be in the same frontend/gameplay
-  state logic.
-- A draw-buffer wait can deadlock during rapid menu transitions (the game waits
-  in `func_80012928` for a buffer that was acquired but never submitted).
-- Loading the results screen after finishing a level is slow.
+### USA
+- None known.
+
+### EU (`eu-support-archive`)
+- The EU build can crash or hang after a collision that makes a car stop and
+  restart its engine (brake screech + engine-start sound). Muting the entire
+  in-race sound driver avoids it, but also removes the bike/car effects. The EU
+  car/sound data overlaps the race arena and sound buffers; the playback fix is
+  still open.
 
 ## Notes
 
