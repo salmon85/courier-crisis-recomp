@@ -27,6 +27,24 @@
       "address": "80012928",
       "target": "CourierCrisis.Patches.WaitDrawBuffer",
       "mode": "replace"
+    },
+    {
+      "overlay": "game",
+      "address": "80066E74",
+      "target": "CourierCrisis.Patches.MusicSelectPre",
+      "mode": "pre"
+    },
+    {
+      "overlay": "game",
+      "address": "80066E74",
+      "target": "CourierCrisis.Patches.MusicSelectPost",
+      "mode": "post"
+    },
+    {
+      "overlay": "game",
+      "address": "80066530",
+      "target": "CourierCrisis.Patches.MusicScenePost",
+      "mode": "post"
     }
   ]
 }

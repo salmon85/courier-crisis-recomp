@@ -1,0 +1,51 @@
+{
+  "game": {
+    "id": "SLES-00326",
+    "name": "Courier Crisis EU",
+    "output": "../generated/eu"
+  },
+  "cue": "../../Courier Crisis - The Saga of the Modern Fatalist (Europe) (En,Fr,De,It).cue",
+  "funcMap": "funcmaps/eu/main.json",
+  "mainOverlay": "main_eu",
+  "linearSweep": true,
+  "overlays": [
+    {
+      "name": "game_eu",
+      "funcMap": "funcmaps/eu/game.json",
+      "base": "0x80010000",
+      "file": "GAME.EXE",
+      "skip": 2048,
+      "functions": [
+        {
+          "address": "80085758"
+        }
+      ]
+    }
+  ],
+  "patches": [
+    {
+      "overlay": "game_eu",
+      "address": "8001297C",
+      "target": "CourierCrisis.Patches.WaitDrawBuffer",
+      "mode": "replace"
+    },
+    {
+      "overlay": "game_eu",
+      "address": "80066618",
+      "target": "CourierCrisis.Patches.MusicSelectPre",
+      "mode": "pre"
+    },
+    {
+      "overlay": "game_eu",
+      "address": "80066618",
+      "target": "CourierCrisis.Patches.MusicSelectPost",
+      "mode": "post"
+    },
+    {
+      "overlay": "game_eu",
+      "address": "80065CD8",
+      "target": "CourierCrisis.Patches.MusicScenePost",
+      "mode": "post"
+    }
+  ]
+}

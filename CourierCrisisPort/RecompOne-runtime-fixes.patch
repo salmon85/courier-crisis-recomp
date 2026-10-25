@@ -337,3 +337,60 @@ index 02698c7..f635ae0 100644
      public static void PutDrawEnv(CpuContext c, IMemory m)
      {
          var gpu = Runtime.Gpu;
+diff --git a/RecompOne.Recompiler/CodeGen/EntryWriter.cs b/RecompOne.Recompiler/CodeGen/EntryWriter.cs
+index 847777e..4836e2d 100644
+--- a/RecompOne.Recompiler/CodeGen/EntryWriter.cs
++++ b/RecompOne.Recompiler/CodeGen/EntryWriter.cs
+@@ -6,7 +6,7 @@ namespace RecompOne.Recompiler.CodeGen;
+ public static class EntryWriter
+ {
+     public static void Write(PsxExe exe, SystemCfg sysCfg, string bootExe, string className, string? mainCall,
+-        List<string> overlays, string outDir)
++        List<string> overlays, string outDir, string mainOverlay = "main")
+     {
+         var entry = new StringBuilder();
+         entry.AppendLine("using RecompOne.Runtime.Cdrom;");
+@@ -30,7 +30,7 @@ public static class EntryWriter
+             entry.AppendLine($"        Dispatcher.Register(\"{name}\", new {DispatchTableName(name)}());");
+         entry.AppendLine("        RecompOne.Runtime.Modding.ModLoader.LoadAll();");
+         entry.AppendLine($"        cd.LoadToMemory(\"{bootExe}\", 0x{exe.Destination:X8}u, 0x800, {exe.TextSize});");
+-        entry.AppendLine("        Dispatcher.Load(\"main\");");
++        entry.AppendLine($"        Dispatcher.Load(\"{mainOverlay}\");");
+         entry.AppendLine("        var c = new CpuContext();");
+         entry.AppendLine($"        c.GP = 0x{exe.InitialGP:X8}u;");
+         var initialSp = exe.InitialSP != 0 ? exe.InitialSP + exe.SpOffset : sysCfg.Stack;
+diff --git a/RecompOne.Recompiler/CodeGen/OverlayWriter.cs b/RecompOne.Recompiler/CodeGen/OverlayWriter.cs
+index d02ee89..f95942a 100644
+--- a/RecompOne.Recompiler/CodeGen/OverlayWriter.cs
++++ b/RecompOne.Recompiler/CodeGen/OverlayWriter.cs
+@@ -130,7 +130,7 @@ public static class OverlayWriter
+             new PipelineOptions(config.Functions, config.LinearSweep, config.PointerScan, config.Stubs,
+                 config.Ignored));
+ 
+-        return new OverlayResult("main", funcs, -1, 0, 0, instrs);
++        return new OverlayResult(config.MainOverlay ?? "main", funcs, -1, 0, 0, instrs);
+     }
+ 
+     public sealed record OverlayAnalysis(
+@@ -280,7 +280,8 @@ public static class OverlayWriter
+ 
+         Console.WriteLine("[Recompiler] Emitting Entry.cs");
+         var overlayNames = overlayResults.Select(o => o.Name).ToList();
+-        EntryWriter.Write(mainExe, sysCfg, sysCfg.BootExe, className, mainCall, overlayNames, outDir);
++        EntryWriter.Write(mainExe, sysCfg, sysCfg.BootExe, className, mainCall, overlayNames, outDir,
++            config.MainOverlay ?? "main");
+ 
+         Console.WriteLine("[Recompiler] finished "); //maybe add time it took
+     }
+diff --git a/RecompOne.Recompiler/Config/ConfigLoader.cs b/RecompOne.Recompiler/Config/ConfigLoader.cs
+index 178246a..f7eed49 100644
+--- a/RecompOne.Recompiler/Config/ConfigLoader.cs
++++ b/RecompOne.Recompiler/Config/ConfigLoader.cs
+@@ -11,6 +11,7 @@ public sealed class RecompOneConfig
+     [JsonPropertyName("map")] public string? Map { get; set; }
+     [JsonPropertyName("funcMap")] public string? FuncMap { get; set; }
+     [JsonPropertyName("main")] public string? Main { get; set; }
++    [JsonPropertyName("mainOverlay")] public string? MainOverlay { get; set; }
+     [JsonPropertyName("functions")] public FunctionEntry[] Functions { get; set; } = [];
+ 
+     [JsonPropertyName("pointerScan")]

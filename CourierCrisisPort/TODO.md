@@ -94,3 +94,15 @@ Two address corrections:
   `0x800B58F0`.
 - The S_PLAY store is at `0x80081C54` inside `func_80081B54`; `0x80081C48` is
   the instruction `sll v0, v0, 4`, not a function entry.
+
+## Europe disc support
+
+- [x] Boot the EU executable (`SLES_003.26`) and `GAME.EXE`
+- [x] Extra BMG logo FMV and language selector
+- [x] Draw-buffer wait at the EU address
+- [x] Frontend music selection: USA playlist by default, EU playlist with `--EU`
+- [x] EU recompiled code and dispatch tables coexist with the USA build
+
+The EU build uses `config/funcmaps/eu/` and `config/Courier_Crisis_EU.json`.
+`mainOverlay` keeps the EU dispatch tables (`main_eu`/`game_eu`) separate from
+the USA tables (`main`/`game`).

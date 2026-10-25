@@ -1,13 +1,16 @@
 # Courier Crisis (PS1) — RecompOne port
 
-A static recompilation of **Courier Crisis (USA, SLUS-00442)** into C# using
+A static recompilation of **Courier Crisis (USA, SLUS-00442)** and **Courier
+Crisis (Europe, SLES-00326)** into C# using
 [RecompOne](https://github.com/BlackLabelHQ/RecompOne), plus the runtime fixes
 needed to make the game actually reach and run gameplay.
 
 ## Requirements
 
 - .NET 10 SDK (the port targets `net10.0`)
-- Your own copy of `Courier Crisis (USA).bin` / `.cue`
+- Your own copy of either `Courier Crisis (USA).bin` / `.cue` or
+  `Courier Crisis - The Saga of the Modern Fatalist (Europe) (En,Fr,De,It).bin`
+  / `.cue`
 - `RecompOne` initialized as a submodule next to this folder (`../RecompOne`):
   `git submodule update --init --recursive` from the repository root
 
@@ -16,15 +19,21 @@ needed to make the game actually reach and run gameplay.
 ```
 CourierCrisisPort/
   config/
-    Courier_Crisis.json       recompiler configuration
-    funcmaps/                 generated function maps (main + GAME.EXE overlay)
+    Courier_Crisis.json       USA recompiler configuration
+    Courier_Crisis_EU.json    Europe recompiler configuration
+    funcmaps/                 USA function maps (main + GAME.EXE overlay)
+    funcmaps/eu/              Europe function maps (main + GAME.EXE overlay)
   generated/                  recompiled C# (derived from the disc; do not commit)
+  generated/eu/               recompiled Europe C# (do not commit)
+  BootEntry.cs                region detection and boot loader
+  Patches.cs                  draw-buffer wait and music-selection glue
   Program.cs                  entry point
   CourierCrisis.csproj        references RecompOne.Runtime
 ```
 
-The boot executable (`SLUS_004.42`) is recompiled as the `main` image and
-`GAME.EXE` (loaded with `LoadExec`) as the `game` overlay.
+The boot executable is recompiled as the main image and `GAME.EXE` (loaded with
+`LoadExec`) as the overlay. The USA and EU builds use different class names and
+dispatch tables, so both can be compiled into the same executable.
 
 ## Recompiling
 
@@ -33,9 +42,19 @@ export DOTNET_ROOT=/path/to/dotnet10
 export PATH="$DOTNET_ROOT:$PATH"
 
 dotnet build RecompOne/RecompOne.Recompiler/RecompOne.Recompiler.csproj -c Release
+
+# USA
 dotnet RecompOne/RecompOne.Recompiler/bin/Release/net10.0/recompone.dll \
     CourierCrisisPort/config/Courier_Crisis.json
+
+# Europe
+dotnet RecompOne/RecompOne.Recompiler/bin/Release/net10.0/recompone.dll \
+    CourierCrisisPort/config/Courier_Crisis_EU.json
 ```
+
+Generate only the region(s) whose discs you own. The project checks for
+`generated/main.cs` and `generated/eu/main_eu.cs` and enables the matching
+region at compile time.
 
 ## Building and running
 
@@ -43,15 +62,43 @@ dotnet RecompOne/RecompOne.Recompiler/bin/Release/net10.0/recompone.dll \
 cd CourierCrisisPort
 dotnet build CourierCrisis.csproj -c Release
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/Courier Crisis (USA).cue"
+dotnet bin/Release/net10.0/CourierCrisis.dll \
+    "/path/to/Courier Crisis - The Saga of the Modern Fatalist (Europe) (En,Fr,De,It).cue"
 ```
 
-The game plays the boot logo and intro movie, then loads `GAME.EXE` and runs
-the frontend/demo. `--direct` boots `GAME.EXE` immediately (skipping the intro)
-for faster iteration:
+The region is detected from `SYSTEM.CNF`, so either cue can be passed to the
+same build. The game plays the boot logo and intro movie(s), then loads
+`GAME.EXE` and runs the frontend/demo.
+
+`--direct` boots `GAME.EXE` immediately (skipping the intro) for faster
+iteration:
 
 ```bash
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/game.cue" --direct
 ```
+
+### Europe
+
+The EU version adds an extra BMG logo FMV before the usual intro and shows a
+language selector before the main menu. Both are part of the recompiled EU
+executable and work normally.
+
+The EU disc also ships a different frontend music selection. By default the port
+uses the **USA music selection for both regions**, so the EU frontend plays the
+same track as the USA version (using the EU disc's copy of that file). Pass
+`--EU` to use the **EU music selection for both regions** instead:
+
+```bash
+# USA track selection (default), even with the EU disc
+dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis ... (Europe).cue"
+
+# EU track selection, with either disc
+dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis ... (Europe).cue" --EU
+dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis (USA).cue" --EU
+```
+
+In-level music already uses the same track list in both versions; the switched
+selection is the frontend playlist.
 
 ## Runtime fixes
 
@@ -114,8 +161,14 @@ generic fixes, not game-specific hacks beyond the pad-buffer layout:
    ready-only pump also delivers several sectors per frame instead of one, so
    the 24-block music rings stay full at 30–60 fps.
 
-`config/Courier_Crisis_debug.json` is a diagnostic variant that emits a
-per-function trace; expect it to run much slower and produce a large log.
+8. **Configurable main overlay name** (`RecompOne.Recompiler`)
+   The recompiler's `mainOverlay` config option lets the EU build register
+   `main_eu`/`game_eu` dispatch tables alongside the USA `main`/`game` tables in
+   the same executable.
+
+`config/Courier_Crisis_debug.json` is a diagnostic variant of the USA config
+that emits a per-function trace; expect it to run much slower and produce a
+large log.
 
 The runtime fixes are also saved as `RecompOne-runtime-fixes.patch` so they can
 be re-applied if RecompOne is updated or re-cloned.

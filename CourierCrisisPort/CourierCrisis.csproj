@@ -10,6 +10,19 @@
     <RootNamespace>CourierCrisis</RootNamespace>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <HasUsGenerated Condition="Exists('$(MSBuildProjectDirectory)/generated/main.cs')">true</HasUsGenerated>
+    <HasEuGenerated Condition="Exists('$(MSBuildProjectDirectory)/generated/eu/main_eu.cs')">true</HasEuGenerated>
+    <DefineConstants Condition="'$(HasUsGenerated)' == 'true'">$(DefineConstants);HAS_US</DefineConstants>
+    <DefineConstants Condition="'$(HasEuGenerated)' == 'true'">$(DefineConstants);HAS_EU</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- BootEntry.cs provides Entry/Bios for every region. -->
+    <Compile Remove="generated/Entry.cs;generated/Stubs.cs" />
+    <Compile Remove="generated/eu/Entry.cs;generated/eu/Stubs.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../RecompOne/RecompOne.Runtime/RecompOne.Runtime.csproj" />
   </ItemGroup>
