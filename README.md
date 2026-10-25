@@ -6,9 +6,18 @@ recompiler.
 
 - `CourierCrisisPort/` — the port itself (config, recompiled C# entry point,
   project file). See `CourierCrisisPort/README.md`.
-- `RecompOne/` — the recompiler/runtime checkout (its own git repository). The
-  three required runtime fixes are committed there and mirrored in
+- `RecompOne/` — the recompiler/runtime, included as a git submodule
+  ([salmon85/RecompOne](https://github.com/salmon85/RecompOne)). The runtime
+  fixes are committed there and mirrored in
   `CourierCrisisPort/RecompOne-runtime-fixes.patch`.
+
+Clone with the submodule:
+
+```bash
+git clone --recursive https://github.com/salmon85/courier-crisis-recomp.git
+# or, in an existing clone:
+git submodule update --init --recursive
+```
 
 The game disc (`.bin`/`.cue`) and the recompiled `generated/` output are not
 committed. Put your own disc next to this folder and regenerate:

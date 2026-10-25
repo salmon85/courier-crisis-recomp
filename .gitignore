@@ -2,9 +2,6 @@
 *.bin
 *.cue
 
-# RecompOne is its own git repository / upstream clone
-RecompOne/
-
 # Recompiled output and build artifacts (regenerate from your disc)
 CourierCrisisPort/generated/
 CourierCrisisPort/bin/

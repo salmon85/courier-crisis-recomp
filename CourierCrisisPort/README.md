@@ -8,7 +8,8 @@ needed to make the game actually reach and run gameplay.
 
 - .NET 10 SDK (the port targets `net10.0`)
 - Your own copy of `Courier Crisis (USA).bin` / `.cue`
-- `RecompOne` checked out next to this folder (`../RecompOne`)
+- `RecompOne` initialized as a submodule next to this folder (`../RecompOne`):
+  `git submodule update --init --recursive` from the repository root
 
 ## Layout
 
