@@ -89,6 +89,13 @@ generic fixes, not game-specific hacks beyond the pad-buffer layout:
    two 24-block RAM rings. With the IRQ in place the engine refills the SPU
    buffers from the rings and music plays.
 
+   The IRQ must be asserted once per crossing, when the voice is reading the
+   block at the IRQ address. An earlier version checked both the previous and
+   next addresses, which raised IRQ9 twice per crossing. That made the SpuSt
+   engine refill twice as fast, so music played fast and streamed voice
+   samples were cut off. The check now happens once, before the block is
+   decoded.
+
 6. **CD streaming state across `LoadExec`** (`RecompOne.Runtime/sdk/LibCd.cs`)
    The boot executable uses libcd's stream ring (`StSetRing`/`StSetStream`) for
    the intro movie and never tears it down before loading `GAME.EXE`. Because

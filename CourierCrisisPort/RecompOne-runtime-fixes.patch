@@ -74,6 +74,199 @@ index 1239e9d..53332b9 100644
              case 0x57: c.V0 = GetB0Table(m); break;
              case 0x58: break;
              case 0x59: c.V0 = BiosA.TestDevice(m, c.A0); break;
+diff --git a/RecompOne.Runtime/Hardware/Interrupts.cs b/RecompOne.Runtime/Hardware/Interrupts.cs
+index 5decece..b982aaf 100644
+--- a/RecompOne.Runtime/Hardware/Interrupts.cs
++++ b/RecompOne.Runtime/Hardware/Interrupts.cs
+@@ -105,6 +105,7 @@ public static class Interrupts
+     {
+         _countdown = PollInterval;
+         TickVBlank();
++        Sdk.LibCd.PumpReadComplete();
+         Runtime.Timers?.Poll(RaiseTimer);
+         if (_inHandler || _servicing || !_irqEnabled) return;
+ 
+diff --git a/RecompOne.Runtime/Hardware/Spu.cs b/RecompOne.Runtime/Hardware/Spu.cs
+index 081fb13..d83c750 100644
+--- a/RecompOne.Runtime/Hardware/Spu.cs
++++ b/RecompOne.Runtime/Hardware/Spu.cs
+@@ -287,6 +287,8 @@ public sealed class Spu
+     private uint _endx;
+     private ushort _spucnt;
+     private ushort _transferAddr;
++    private ushort _irqAddr;
++    private bool _irqPending;
+     private ushort _transferCtrl = 4;
+     private ushort _cdVolL, _cdVolR;
+     private ushort _extVolL, _extVolR;
+@@ -369,15 +371,16 @@ public sealed class Spu
+             0x19C => (ushort)(_endx & 0xFFFF),
+             0x19E => (ushort)(_endx >> 16),
+             0x1A2 => _reverbStartAddr,
+-            >= 0x1C0 and <= 0x1FE => _rev[(off - 0x1C0) >> 1],
++            0x1A4 => _irqAddr,
+             0x1A6 => _transferAddr,
+             0x1AA => _spucnt,
+             0x1AC => _transferCtrl,
+-            0x1AE => (ushort)(_spucnt & 0x3F),
++            0x1AE => (ushort)((_spucnt & 0x3F) | (_irqPending ? 0x40 : 0)),
+             0x1B0 => _cdVolL,
+             0x1B2 => _cdVolR,
+             0x1B4 => _extVolL,
+             0x1B6 => _extVolR,
++            >= 0x1C0 and <= 0x1FE => _rev[(off - 0x1C0) >> 1],
+             _ => 0
+         };
+     }
+@@ -446,8 +449,12 @@ public sealed class Spu
+             case 0x198: _eon = val; break;
+             case 0x19A: _eonHi = val; break;
+             case 0x1A2: _reverbStartAddr = val; break;
++            case 0x1A4: _irqAddr = val; break;
+             case 0x1A6: _transferAddr = val; break;
+-            case 0x1AA: _spucnt = val; break;
++            case 0x1AA:
++                _spucnt = val;
++                if ((val & 0x40) == 0) _irqPending = false;
++                break;
+             case 0x1AC: _transferCtrl = val; break;
+             case 0x1B0: _cdVolL = val; break;
+             case 0x1B2: _cdVolR = val; break;
+@@ -645,6 +652,7 @@ public sealed class Spu
+                 }
+             }
+         }
++
+     }
+ 
+     private (short L, short R) Tick()
+@@ -776,6 +784,21 @@ public sealed class Spu
+         v.Buf[2] = v.Buf[30];
+ 
+         var addr = v.CurAddr & (uint)(RamSize - 1);
++
++        // SPU IRQ: assert when a voice is reading the block at the IRQ address.
++        // This must be checked once, at the start of the block. Checking both
++        // the previous and next addresses fired twice per crossing, which made
++        // the SpuSt stream refill twice as fast.
++        if (_irqAddr != 0 && (_spucnt & 0x40) != 0)
++        {
++            var irqByte = (uint)_irqAddr << 3;
++            if (addr == irqByte)
++            {
++                _irqPending = true;
++                Interrupts.Raise(9);
++            }
++        }
++
+         var hdr = Ram[addr];
+         var flags = Ram[(addr + 1) & (RamSize - 1)];
+ 
+diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
+index 076f527..41b61d7 100644
+--- a/RecompOne.Runtime/sdk/LibCd.cs
++++ b/RecompOne.Runtime/sdk/LibCd.cs
+@@ -117,6 +117,7 @@ public static class LibCd
+     public static void CdSync(CpuContext c, IMemory m)
+     {
+         var result = c.A1;
++        PumpReadComplete();
+         PumpSync();
+         PumpReady(1);
+         c.V0 = (uint)SyncResult(m, result);
+@@ -125,6 +126,7 @@ public static class LibCd
+     public static void CdReady(CpuContext c, IMemory m)
+     {
+         var result = c.A1;
++        PumpReadComplete();
+         PumpSync();
+         PumpReady(1);
+         if (_readActive && _cbReady == 0 && _cbData == 0) _dataIntr = DataReady;
+@@ -176,10 +178,26 @@ public static class LibCd
+ 
+         _lastIntr = Complete;
+         c.V0 = 1;
+-        FireRead(c, m);
++        // The read-complete callback is delivered from the interrupt handler on
++        // real hardware, i.e. after CdRead has returned and the caller has
++        // finished setting up its state. Firing it inline lets callers that arm
++        // a pump after CdRead clobber that pump (Courier Crisis re-reads the
++        // level header forever). Defer delivery to the next pump/frame.
++        _readCompletePending = true;
+     }
+ 
+     private static bool _inReadCb;
++    private static bool _readCompletePending;
++
++    internal static void PumpReadComplete()
++    {
++        if (!_readCompletePending || _inReadCb) return;
++        var c = Runtime.Cpu;
++        var m = Runtime.Mem;
++        if (c == null || m == null) return;
++        _readCompletePending = false;
++        FireRead(c, m);
++    }
+ 
+     private static void FireRead(CpuContext c, IMemory m)
+     {
+@@ -291,6 +309,7 @@ public static class LibCd
+ 
+     internal static void Tick()
+     {
++        PumpReadComplete();
+         _frameSectors = 0;
+         TickCdda();
+         if (LibDs.Active)
+@@ -353,7 +372,14 @@ public static class LibCd
+         else
+         {
+             c.Restore(snap);
+-            if (_readyOnlyRead) PumpReady(1);
++            // Keep the sector pipeline running for readers that use the ready
++            // callback and read the FIFO with CdGetSector. They often register
++            // and unregister their data callback per sector, so gating this on
++            // _readyOnlyRead alone stops the stream after the first sector.
++            // Allow several sectors per frame: a music stream consumes about
++            // 25 blocks/second per channel, so one sector/frame underruns at
++            // 30 fps.
++            PumpReady(8);
+             return;
+         }
+ 
+@@ -573,9 +599,23 @@ public static class LibCd
+                 c.A0 = DataReady;
+                 c.A1 = PublishStatus(m);
+                 Dispatcher.Call(c, m, _cbReady);
++
++                // The ready callback may have registered a per-sector data
++                // callback and filled its buffer with CdGetSector. Deliver the
++                // data callback for this sector before advancing the position,
++                // otherwise the producer/consumer ring pointers drift apart.
++                var queued = _cdDataPending;
++                if (queued && _cbData != 0)
++                {
++                    _cdDataPending = false;
++                    c.A0 = DataReady;
++                    c.A1 = PublishStatus(m);
++                    Dispatcher.Call(c, m, _cbData);
++                }
++
+                 AdvancePos(1);
+                 Dispatcher.LoadByLba(CurrentLba);
+-                if (!_cdDataPending) break;
++                if (!queued) break;
+             }
+         }
+         finally
+@@ -1026,6 +1066,7 @@ public static class LibCd
+         }
+ 
+         LibDs.Detach();
++        LibCdStream.Reset();
+     }
+ 
+     internal static void Reset()
 diff --git a/RecompOne.Runtime/sdk/LibGpu.cs b/RecompOne.Runtime/sdk/LibGpu.cs
 index 02698c7..f635ae0 100644
 --- a/RecompOne.Runtime/sdk/LibGpu.cs
@@ -144,143 +337,3 @@ index 02698c7..f635ae0 100644
      public static void PutDrawEnv(CpuContext c, IMemory m)
      {
          var gpu = Runtime.Gpu;
-
-diff --git a/RecompOne.Runtime/Hardware/Spu.cs b/RecompOne.Runtime/Hardware/Spu.cs
-index 081fb13..47b75f8 100644
---- a/RecompOne.Runtime/Hardware/Spu.cs
-+++ b/RecompOne.Runtime/Hardware/Spu.cs
-@@ -287,6 +287,8 @@ public sealed class Spu
-     private uint _endx;
-     private ushort _spucnt;
-     private ushort _transferAddr;
-+    private ushort _irqAddr;
-+    private bool _irqPending;
-     private ushort _transferCtrl = 4;
-     private ushort _cdVolL, _cdVolR;
-     private ushort _extVolL, _extVolR;
-@@ -369,15 +371,16 @@ public sealed class Spu
-             0x19C => (ushort)(_endx & 0xFFFF),
-             0x19E => (ushort)(_endx >> 16),
-             0x1A2 => _reverbStartAddr,
--            >= 0x1C0 and <= 0x1FE => _rev[(off - 0x1C0) >> 1],
-+            0x1A4 => _irqAddr,
-             0x1A6 => _transferAddr,
-             0x1AA => _spucnt,
-             0x1AC => _transferCtrl,
--            0x1AE => (ushort)(_spucnt & 0x3F),
-+            0x1AE => (ushort)((_spucnt & 0x3F) | (_irqPending ? 0x40 : 0)),
-             0x1B0 => _cdVolL,
-             0x1B2 => _cdVolR,
-             0x1B4 => _extVolL,
-             0x1B6 => _extVolR,
-+            >= 0x1C0 and <= 0x1FE => _rev[(off - 0x1C0) >> 1],
-             _ => 0
-         };
-     }
-@@ -446,8 +449,12 @@ public sealed class Spu
-             case 0x198: _eon = val; break;
-             case 0x19A: _eonHi = val; break;
-             case 0x1A2: _reverbStartAddr = val; break;
-+            case 0x1A4: _irqAddr = val; break;
-             case 0x1A6: _transferAddr = val; break;
--            case 0x1AA: _spucnt = val; break;
-+            case 0x1AA:
-+                _spucnt = val;
-+                if ((val & 0x40) == 0) _irqPending = false;
-+                break;
-             case 0x1AC: _transferCtrl = val; break;
-             case 0x1B0: _cdVolL = val; break;
-             case 0x1B2: _cdVolR = val; break;
-@@ -645,6 +652,7 @@ public sealed class Spu
-                 }
-             }
-         }
-+
-     }
- 
-     private (short L, short R) Tick()
-@@ -775,6 +783,7 @@ public sealed class Spu
-         v.Buf[1] = v.Buf[29];
-         v.Buf[2] = v.Buf[30];
- 
-+        var oldAddr = v.CurAddr;
-         var addr = v.CurAddr & (uint)(RamSize - 1);
-         var hdr = Ram[addr];
-         var flags = Ram[(addr + 1) & (RamSize - 1)];
-@@ -800,6 +809,22 @@ public sealed class Spu
- 
-         v.CurAddr += 16;
- 
-+        // SPU IRQ: a voice reading ADPCM data at the IRQ address asserts IRQ9.
-+        // libspu's SpuSt streaming engine uses this to refill its SPU buffers.
-+        // Keep asserting while the condition holds: the first IRQ can be
-+        // delivered before the game has registered its IRQ9 callback.
-+        if (_irqAddr != 0 && (_spucnt & 0x40) != 0)
-+        {
-+            var irqByte = (uint)_irqAddr << 3;
-+            var newAddr = v.CurAddr & (uint)(RamSize - 1);
-+            var from = oldAddr & (uint)(RamSize - 1);
-+            if (newAddr == irqByte || from == irqByte)
-+            {
-+                _irqPending = true;
-+                Interrupts.Raise(9);
-+            }
-+        }
-+
-         if ((flags & 1) != 0)
-         {
-             v.EndX = true;
-
-diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
-index 0621f19..b668a76 100644
---- a/RecompOne.Runtime/sdk/LibCd.cs
-+++ b/RecompOne.Runtime/sdk/LibCd.cs
-@@ -1049,6 +1049,7 @@ public static class LibCd
-         }
- 
-         LibDs.Detach();
-+        LibCdStream.Reset();
-     }
- 
-     internal static void Reset()
-diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
-index b668a76..41b61d7 100644
---- a/RecompOne.Runtime/sdk/LibCd.cs
-+++ b/RecompOne.Runtime/sdk/LibCd.cs
-@@ -376,7 +376,10 @@ public static class LibCd
-             // callback and read the FIFO with CdGetSector. They often register
-             // and unregister their data callback per sector, so gating this on
-             // _readyOnlyRead alone stops the stream after the first sector.
--            PumpReady(1);
-+            // Allow several sectors per frame: a music stream consumes about
-+            // 25 blocks/second per channel, so one sector/frame underruns at
-+            // 30 fps.
-+            PumpReady(8);
-             return;
-         }
- 
-@@ -596,9 +599,23 @@ public static class LibCd
-                 c.A0 = DataReady;
-                 c.A1 = PublishStatus(m);
-                 Dispatcher.Call(c, m, _cbReady);
-+
-+                // The ready callback may have registered a per-sector data
-+                // callback and filled its buffer with CdGetSector. Deliver the
-+                // data callback for this sector before advancing the position,
-+                // otherwise the producer/consumer ring pointers drift apart.
-+                var queued = _cdDataPending;
-+                if (queued && _cbData != 0)
-+                {
-+                    _cdDataPending = false;
-+                    c.A0 = DataReady;
-+                    c.A1 = PublishStatus(m);
-+                    Dispatcher.Call(c, m, _cbData);
-+                }
-+
-                 AdvancePos(1);
-                 Dispatcher.LoadByLba(CurrentLba);
--                if (!_cdDataPending) break;
-+                if (!queued) break;
-             }
-         }
-         finally
