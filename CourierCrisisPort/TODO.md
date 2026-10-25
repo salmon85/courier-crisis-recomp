@@ -109,8 +109,9 @@ the USA tables (`main`/`game`).
 
 ## EU attract-demo crash
 
-- [ ] EU demo 7 (roughly USA demo 3) can crash after several minutes.
-- The EU build runs at 50 Hz; the recorded demo inputs desync from the USA
-  sequence (EU demo 2 has no USA equivalent, EU demo 3 is USA demo 2). The
-  desynced demo corrupts the audio voice list and then faults while walking it.
-- Starting a game before the attract loop reaches that demo avoids it.
+- [x] EU demo 7 (roughly USA demo 3) crashed after several minutes at 50 Hz.
+- The EU build now keeps PAL video mode but runs frames at 60 Hz. The PAL level
+  parameters contain a 1.2x (16.16) movement scale at `0x800A0A6C`; the port
+  replaces it with 1.0 at 60 Hz so demo movement matches the NTSC build.
+- `--50` keeps the authentic PAL timing and the original 1.2 scale for
+  comparison; the old crash can return in that mode.

@@ -111,6 +111,18 @@ public static class Patches
         m.WriteU32(global, PortOptions.UseEuMusic ? 6u : 0u);
     }
 
+    /// <summary>
+    /// 0x80075630 (Europe): load the current level's timing parameters. The PAL
+    /// build stores a 16.16 speed scale of 1.2 at 0x800A0A6C; the USA build
+    /// stores 1.0. When we run the EU build at 60 Hz, use the NTSC scale so
+    /// movement and demo playback match the 60 Hz game.
+    /// </summary>
+    public static void FixEuSpeedScale(CpuContext c, IMemory m)
+    {
+        if (PortOptions.Region == DiscRegion.Europe && !PortOptions.Use50Hz)
+            m.WriteU32(0x800A0A6Cu, 0x00010000u);
+    }
+
     private static readonly uint[] EuPlaylist6 =
     [
         0x416, 0x419, 0x41C, 0x41B, 0x234, 0x23C, 0x41D, 0x23E, 0x235, 0x240,

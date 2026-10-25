@@ -9,7 +9,7 @@ var cue = explicitCue ?? FindDefaultCue();
 if (cue == null)
 {
     Console.Error.WriteLine("disc cue not found");
-    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU]");
+    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU] [--50]");
     return 1;
 }
 
@@ -17,15 +17,17 @@ cue = Path.GetFullPath(cue);
 if (!File.Exists(cue))
 {
     Console.Error.WriteLine($"disc cue not found: {cue}");
-    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU]");
+    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU] [--50]");
     return 1;
 }
 
 var direct = args.Any(a => a.Equals("--direct", StringComparison.OrdinalIgnoreCase));
 var euMusic = args.Any(a => a.Equals("--EU", StringComparison.OrdinalIgnoreCase));
+var use50Hz = args.Any(a => a.Equals("--50", StringComparison.OrdinalIgnoreCase));
 
 Settings.System.DiscPath = cue;
 PortOptions.UseEuMusic = euMusic;
+PortOptions.Use50Hz = use50Hz;
 
 // Courier Crisis predates the DualShock; its PAD buffer is only four bytes.
 Settings.System.Input[0].Kind = PadKind.Digital;

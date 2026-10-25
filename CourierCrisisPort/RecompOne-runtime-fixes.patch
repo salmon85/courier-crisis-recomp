@@ -394,3 +394,42 @@ index 178246a..f7eed49 100644
      [JsonPropertyName("functions")] public FunctionEntry[] Functions { get; set; } = [];
  
      [JsonPropertyName("pointerScan")]
+diff --git a/RecompOne.Runtime/Host/FrameClock.cs b/RecompOne.Runtime/Host/FrameClock.cs
+index d857b49..038df7f 100644
+--- a/RecompOne.Runtime/Host/FrameClock.cs
++++ b/RecompOne.Runtime/Host/FrameClock.cs
+@@ -27,7 +27,16 @@ internal static class FrameClock
+ 
+     public static double PresentFps { get; private set; }
+ 
+-    public static double FrameMs => Sdk.LibGpu.Pal ? 1000.0 / 50.0 : 1000.0 / 60.0;
++    private static double? _refreshOverride;
++
++    public static void SetRefreshRate(double? hertz)
++    {
++        _refreshOverride = hertz;
++    }
++
++    public static double FrameMs => _refreshOverride is { } hz
++        ? 1000.0 / hz
++        : Sdk.LibGpu.Pal ? 1000.0 / 50.0 : 1000.0 / 60.0;
+ 
+     public static double Now => _clock.Elapsed.TotalMilliseconds;
+ 
+diff --git a/RecompOne.Runtime/Runtime.cs b/RecompOne.Runtime/Runtime.cs
+index 709e024..a8341f5 100644
+--- a/RecompOne.Runtime/Runtime.cs
++++ b/RecompOne.Runtime/Runtime.cs
+@@ -36,6 +36,12 @@ public static class Runtime
+     public static uint RamWordMask => (RamSize - 1) & ~3u;
+     public static string CdPath => Config.Settings.System.DiscPath;
+ 
++    /// <summary>
++    /// Override the emulated refresh rate without changing the video mode.
++    /// Passing null restores the region default (50 Hz PAL / 60 Hz NTSC).
++    /// </summary>
++    public static void SetRefreshRate(double? hertz) => Host.FrameClock.SetRefreshRate(hertz);
++
+     public static Func<string, string?>? DiscValidator;
+ 
+     public static string? ValidateDisc(string path)

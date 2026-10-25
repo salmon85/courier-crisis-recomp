@@ -46,6 +46,12 @@
       "address": "80065CD8",
       "target": "CourierCrisis.Patches.MusicScenePost",
       "mode": "post"
+    },
+    {
+      "overlay": "game_eu",
+      "address": "80075630",
+      "target": "CourierCrisis.Patches.FixEuSpeedScale",
+      "mode": "post"
     }
   ]
 }

@@ -100,6 +100,22 @@ dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis (USA).cue" --EU
 In-level music already uses the same track list in both versions; the switched
 selection is the frontend playlist.
 
+### Demo timing / physics scale
+
+The EU build keeps PAL video mode (so the picture is not cropped) but runs the
+game at 60 Hz. The PAL executable stores a 1.2x (16.16 fixed-point) movement
+scale in its level parameters; at 60 Hz that makes the recorded demos move too
+fast. The port replaces that scale with the USA value (1.0) while running at
+60 Hz, so demo movement matches the 60 Hz build.
+
+Pass `--50` to use the authentic PAL 50 Hz frame rate and keep the original 1.2
+scale. This is mainly useful for comparison; the original EU attract-demo crash
+can still occur in that mode.
+
+```bash
+dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis ... (Europe).cue" --50
+```
+
 ## Runtime fixes
 
 The following changes were required in RecompOne (`../RecompOne`). They are
@@ -188,12 +204,9 @@ be re-applied if RecompOne is updated or re-cloned.
 - A draw-buffer wait can deadlock during rapid menu transitions (the game waits
   in `func_80012928` for a buffer that was acquired but never submitted).
 - Loading the results screen after finishing a level is slow.
-- The EU attract/demo loop can crash after several demos. The EU demos are the
-  same recorded inputs as the USA version but play back at 50 Hz, so their
-  movement diverges (EU demo 7 corresponds roughly to USA demo 3). One of those
-  desynced demos eventually corrupts the audio voice list. Starting a game
-  before the attract loop reaches it avoids the crash; this is demo/replay
-  specific, not a general boot or gameplay failure.
+- With `--50`, the original PAL attract-demo timing can still crash after
+  several demos. The default 60 Hz mode with demo resampling is the supported
+  path.
 
 ## Notes
 

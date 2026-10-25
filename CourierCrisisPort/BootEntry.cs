@@ -21,6 +21,7 @@ public static class PortOptions
 {
     public static DiscRegion Region { get; set; } = DiscRegion.Usa;
     public static bool UseEuMusic { get; set; }
+    public static bool Use50Hz { get; set; }
 }
 
 /// <summary>
@@ -43,6 +44,17 @@ public static class Entry
         m.SetCd(cd);
 
         PortOptions.Region = DetectRegion(fs);
+
+        var regionName = PortOptions.Region == DiscRegion.Europe ? "EU" : "USA";
+        var rateName = PortOptions.Region == DiscRegion.Europe && !PortOptions.Use50Hz ? "60 Hz" : "50 Hz";
+        if (PortOptions.Region == DiscRegion.Usa) rateName = "60 Hz";
+        var musicName = PortOptions.UseEuMusic ? ", EU music" : "";
+        Runtime.SetTitle($"Courier Crisis ({regionName}) [{rateName}{musicName}]");
+
+        // Keep the EU build in PAL video mode, but let it run at 60 Hz so its
+        // recorded demos are not stretched over 50 Hz frames.
+        RecompOne.Runtime.Runtime.SetRefreshRate(
+            PortOptions.Region == DiscRegion.Europe && !PortOptions.Use50Hz ? 60.0 : null);
         RegisterOverlays(PortOptions.Region);
         RecompOne.Runtime.Modding.ModLoader.LoadAll();
 
