@@ -1,16 +1,17 @@
 # Courier Crisis (PS1) — RecompOne port
 
-A static recompilation of **Courier Crisis (USA, SLUS-00442)** and **Courier
-Crisis (Europe, SLES-00326)** into C# using
+A static recompilation of **Courier Crisis (USA, SLUS-00442)** into C# using
 [RecompOne](https://github.com/BlackLabelHQ/RecompOne), plus the runtime fixes
 needed to make the game actually reach and run gameplay.
+
+The European port (SLES-00326), PAL 60 Hz mode and attract-demo fixes are
+archived in the `eu-support-archive` branch. This branch supports the USA disc
+only.
 
 ## Requirements
 
 - .NET 10 SDK (the port targets `net10.0`)
-- Your own copy of either `Courier Crisis (USA).bin` / `.cue` or
-  `Courier Crisis - The Saga of the Modern Fatalist (Europe) (En,Fr,De,It).bin`
-  / `.cue`
+- Your own copy of `Courier Crisis (USA).bin` / `.cue`
 - `RecompOne` initialized as a submodule next to this folder (`../RecompOne`):
   `git submodule update --init --recursive` from the repository root
 
@@ -20,20 +21,16 @@ needed to make the game actually reach and run gameplay.
 CourierCrisisPort/
   config/
     Courier_Crisis.json       USA recompiler configuration
-    Courier_Crisis_EU.json    Europe recompiler configuration
     funcmaps/                 USA function maps (main + GAME.EXE overlay)
-    funcmaps/eu/              Europe function maps (main + GAME.EXE overlay)
   generated/                  recompiled C# (derived from the disc; do not commit)
-  generated/eu/               recompiled Europe C# (do not commit)
-  BootEntry.cs                region detection and boot loader
+  BootEntry.cs                USA boot loader
   Patches.cs                  draw-buffer wait and music-selection glue
   Program.cs                  entry point
   CourierCrisis.csproj        references RecompOne.Runtime
 ```
 
 The boot executable is recompiled as the main image and `GAME.EXE` (loaded with
-`LoadExec`) as the overlay. The USA and EU builds use different class names and
-dispatch tables, so both can be compiled into the same executable.
+`LoadExec`) as the overlay.
 
 ## Recompiling
 
@@ -43,18 +40,12 @@ export PATH="$DOTNET_ROOT:$PATH"
 
 dotnet build RecompOne/RecompOne.Recompiler/RecompOne.Recompiler.csproj -c Release
 
-# USA
 dotnet RecompOne/RecompOne.Recompiler/bin/Release/net10.0/recompone.dll \
     CourierCrisisPort/config/Courier_Crisis.json
-
-# Europe
-dotnet RecompOne/RecompOne.Recompiler/bin/Release/net10.0/recompone.dll \
-    CourierCrisisPort/config/Courier_Crisis_EU.json
 ```
 
-Generate only the region(s) whose discs you own. The project checks for
-`generated/main.cs` and `generated/eu/main_eu.cs` and enables the matching
-region at compile time.
+The project checks for `generated/main.cs` and enables the USA build at compile
+time.
 
 ## Building and running
 
@@ -62,13 +53,10 @@ region at compile time.
 cd CourierCrisisPort
 dotnet build CourierCrisis.csproj -c Release
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/Courier Crisis (USA).cue"
-dotnet bin/Release/net10.0/CourierCrisis.dll \
-    "/path/to/Courier Crisis - The Saga of the Modern Fatalist (Europe) (En,Fr,De,It).cue"
 ```
 
-The region is detected from `SYSTEM.CNF`, so either cue can be passed to the
-same build. The game plays the boot logo and intro movie(s), then loads
-`GAME.EXE` and runs the frontend/demo.
+The game plays the boot logo and intro movie(s), then loads `GAME.EXE` and runs
+the frontend/demo. European cues are rejected with a clear error.
 
 `--direct` boots `GAME.EXE` immediately (skipping the intro) for faster
 iteration:
@@ -79,26 +67,8 @@ dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/game.cue" --direct
 
 ### Europe
 
-The EU version adds an extra BMG logo FMV before the usual intro and shows a
-language selector before the main menu. Both are part of the recompiled EU
-executable and work normally.
-
-The EU disc also ships a different frontend music selection. By default the port
-uses the **USA music selection for both regions**, so the EU frontend plays the
-same track as the USA version (using the EU disc's copy of that file). Pass
-`--EU` to use the **EU music selection for both regions** instead:
-
-```bash
-# USA track selection (default), even with the EU disc
-dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis ... (Europe).cue"
-
-# EU track selection, with either disc
-dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis ... (Europe).cue" --EU
-dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis (USA).cue" --EU
-```
-
-In-level music already uses the same track list in both versions; the switched
-selection is the frontend playlist.
+European disc support is not part of this branch. The EU port, PAL 60 Hz mode
+and attract-demo fixes are preserved in the `eu-support-archive` branch.
 
 ## Runtime fixes
 
@@ -161,17 +131,9 @@ generic fixes, not game-specific hacks beyond the pad-buffer layout:
    ready-only pump also delivers several sectors per frame instead of one, so
    the 24-block music rings stay full at 30–60 fps.
 
-8. **Configurable main overlay name** (`RecompOne.Recompiler`)
-   The recompiler's `mainOverlay` config option lets the EU build register
-   `main_eu`/`game_eu` dispatch tables alongside the USA `main`/`game` tables in
-   the same executable.
-
 `config/Courier_Crisis_debug.json` is a diagnostic variant of the USA config
 that emits a per-function trace; expect it to run much slower and produce a
 large log.
-
-The runtime fixes are also saved as `RecompOne-runtime-fixes.patch` so they can
-be re-applied if RecompOne is updated or re-cloned.
 
 ## Known issues
 
@@ -188,12 +150,6 @@ be re-applied if RecompOne is updated or re-cloned.
 - A draw-buffer wait can deadlock during rapid menu transitions (the game waits
   in `func_80012928` for a buffer that was acquired but never submitted).
 - Loading the results screen after finishing a level is slow.
-- The EU attract/demo loop can crash after several demos. The EU demos are the
-  same recorded inputs as the USA version but play back at 50 Hz, so their
-  movement diverges (EU demo 7 corresponds roughly to USA demo 3). One of those
-  desynced demos eventually corrupts the audio voice list. Starting a game
-  before the attract loop reaches it avoids the crash; this is demo/replay
-  specific, not a general boot or gameplay failure.
 
 ## Notes
 

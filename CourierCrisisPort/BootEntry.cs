@@ -8,25 +8,9 @@ using BiosKernel = RecompOne.Runtime.Bios.Bios;
 
 namespace Recompiled;
 
-public enum DiscRegion
-{
-    Usa,
-    Europe
-}
-
 /// <summary>
-/// Region-independent options shared by the boot loader and gameplay patches.
-/// </summary>
-public static class PortOptions
-{
-    public static DiscRegion Region { get; set; } = DiscRegion.Usa;
-    public static bool UseEuMusic { get; set; }
-}
-
-/// <summary>
-/// Boots either the USA or the European executable, depending on the disc in
-/// the drive. The recompiled code for both regions is generated separately;
-/// only the matching dispatch tables are registered at runtime.
+/// Boots the USA executable. European discs are rejected; the EU port and the
+/// 60 Hz/demo fixes live on the archived <c>eu-support-archive</c> branch.
 /// </summary>
 public static class Entry
 {
@@ -42,8 +26,8 @@ public static class Entry
         var cd = new CdController(fs, m);
         m.SetCd(cd);
 
-        PortOptions.Region = DetectRegion(fs);
-        RegisterOverlays(PortOptions.Region);
+        RejectEuropeanDisc(fs);
+        RegisterOverlays();
         RecompOne.Runtime.Modding.ModLoader.LoadAll();
 
         if (direct)
@@ -54,11 +38,10 @@ public static class Entry
 
     private static void RunNormal(IMemory m, DiscFs fs, CdController cd)
     {
-        var bootExe = PortOptions.Region == DiscRegion.Europe ? EuBootExe : UsBootExe;
-        var exe = PsxExeInfo.Read(fs, bootExe);
+        var exe = PsxExeInfo.Read(fs, UsBootExe);
 
-        cd.LoadToMemory(bootExe, exe.Destination, 0x800, (int)exe.TextSize);
-        Dispatcher.Load(PortOptions.Region == DiscRegion.Europe ? "main_eu" : "main");
+        cd.LoadToMemory(UsBootExe, exe.Destination, 0x800, (int)exe.TextSize);
+        Dispatcher.Load("main");
 
         var c = new CpuContext
         {
@@ -100,52 +83,41 @@ public static class Entry
         Dispatcher.Call(c, m, exe.InitialPc);
     }
 
-    private static DiscRegion DetectRegion(DiscFs fs)
+    private static void RejectEuropeanDisc(DiscFs fs)
     {
+        var european = false;
         try
         {
             var text = Encoding.ASCII.GetString(fs.ReadFile("SYSTEM.CNF"));
-            if (text.Contains("SLES", StringComparison.OrdinalIgnoreCase) ||
-                text.Contains("SCES", StringComparison.OrdinalIgnoreCase) ||
-                text.Contains("SLED", StringComparison.OrdinalIgnoreCase) ||
-                text.Contains("SCED", StringComparison.OrdinalIgnoreCase))
-                return DiscRegion.Europe;
+            european = text.Contains("SLES", StringComparison.OrdinalIgnoreCase) ||
+                       text.Contains("SCES", StringComparison.OrdinalIgnoreCase) ||
+                       text.Contains("SLED", StringComparison.OrdinalIgnoreCase) ||
+                       text.Contains("SCED", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {
-            // Fall back to the boot executable names below.
+            // Fall back to the boot executable name below.
         }
 
-        return fs.Exists(EuBootExe) ? DiscRegion.Europe : DiscRegion.Usa;
+        if (!european)
+            european = fs.Exists(EuBootExe);
+
+        if (european)
+            throw new NotSupportedException(
+                "European discs are not supported on this branch. " +
+                "The EU port and 60 Hz/demo fixes are archived in branch eu-support-archive.");
     }
 
-    private static void RegisterOverlays(DiscRegion region)
+    private static void RegisterOverlays()
     {
-        if (region == DiscRegion.Europe)
-        {
-#if HAS_EU
-            Dispatcher.Register("main_eu", new Main_euDispatchTable());
-            // The BIOS LoadExec path names overlays after the disc file
-            // (GAME.EXE -> "game"), so register the EU game table under that
-            // name as well. The generated type keeps the region-specific name.
-            Dispatcher.Register("game", new Game_euDispatchTable());
-#else
-            throw new NotSupportedException(
-                "European recompiled code is missing. Run the recompiler with " +
-                "CourierCrisisPort/config/Courier_Crisis_EU.json first.");
-#endif
-        }
-        else
-        {
 #if HAS_US
-            Dispatcher.Register("main", new MainDispatchTable());
-            Dispatcher.Register("game", new GameDispatchTable());
+        Dispatcher.Register("main", new MainDispatchTable());
+        Dispatcher.Register("game", new GameDispatchTable());
 #else
-            throw new NotSupportedException(
-                "USA recompiled code is missing. Run the recompiler with " +
-                "CourierCrisisPort/config/Courier_Crisis.json first.");
+        throw new NotSupportedException(
+            "USA recompiled code is missing. Run the recompiler with " +
+            "CourierCrisisPort/config/Courier_Crisis.json first.");
 #endif
-        }
     }
 }
 
@@ -179,14 +151,4 @@ internal readonly record struct PsxExeInfo(
                       (data[offset + 2] << 16) |
                       (data[offset + 3] << 24));
     }
-}
-
-/// <summary>
-/// BIOS shims normally emitted into the generated output. Defining them here
-/// lets the project compile with one or both generated region directories.
-/// </summary>
-public static class Bios
-{
-    public static void Syscall(CpuContext c, IMemory m) => Interrupts.Syscall(c, m);
-    public static void Break(CpuContext c, IMemory m) { }
 }
