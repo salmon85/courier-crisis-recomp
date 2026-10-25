@@ -9,6 +9,15 @@ using BiosKernel = RecompOne.Runtime.Bios.Bios;
 namespace Recompiled;
 
 /// <summary>
+/// USA-only boot options. The European disc is not supported; the EU music
+/// selection remains available for the USA disc via <c>--EU</c>.
+/// </summary>
+public static class PortOptions
+{
+    public static bool UseEuMusic { get; set; }
+}
+
+/// <summary>
 /// Boots the USA executable. European discs are rejected; the EU port and the
 /// 60 Hz/demo fixes live on the archived <c>eu-support-archive</c> branch.
 /// </summary>

@@ -11,14 +11,7 @@ var cue = explicitCue ?? FindDefaultCue();
 if (cue == null)
 {
     Console.Error.WriteLine("USA disc cue not found");
-    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct]");
-    return 1;
-}
-
-if (args.Any(a => a.Equals("--EU", StringComparison.OrdinalIgnoreCase)))
-{
-    Console.Error.WriteLine("European disc support is not part of this branch.");
-    Console.Error.WriteLine("The EU port and 60 Hz/demo work are archived in branch eu-support-archive.");
+    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU]");
     return 1;
 }
 
@@ -26,7 +19,7 @@ cue = Path.GetFullPath(cue);
 if (!File.Exists(cue))
 {
     Console.Error.WriteLine($"disc cue not found: {cue}");
-    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct]");
+    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU]");
     return 1;
 }
 
@@ -38,8 +31,10 @@ if (IsEuropeanCue(cue))
 }
 
 var direct = args.Any(a => a.Equals("--direct", StringComparison.OrdinalIgnoreCase));
+var euMusic = args.Any(a => a.Equals("--EU", StringComparison.OrdinalIgnoreCase));
 
 Settings.System.DiscPath = cue;
+PortOptions.UseEuMusic = euMusic;
 
 // Courier Crisis predates the DualShock; its PAD buffer is only four bytes.
 Settings.System.Input[0].Kind = PadKind.Digital;

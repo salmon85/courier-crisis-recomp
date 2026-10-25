@@ -11,7 +11,8 @@ recompiler.
 
 The European port and its 60 Hz/PAL and attract-demo fixes are archived in the
 `eu-support-archive` branch (and the earlier `eu-demos-60hz` branch). The
-mainline supports the USA disc only.
+mainline supports the USA disc only; the USA disc's European frontend music
+playlist is still available with `--EU`.
 
 Clone with the submodule:
 
@@ -30,6 +31,13 @@ dotnet RecompOne/RecompOne.Recompiler/bin/Release/net10.0/recompone.dll \
 cd CourierCrisisPort
 dotnet build CourierCrisis.csproj -c Release
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/Courier Crisis (USA).cue"
+```
+
+The USA disc also contains the European frontend playlist as playlist 6. Pass
+`--EU` to use the EU music selection with the USA disc:
+
+```bash
+dotnet bin/Release/net10.0/CourierCrisis.dll "Courier Crisis (USA).cue" --EU
 ```
 
 Pass `--direct` to skip the intro and boot `GAME.EXE` immediately.

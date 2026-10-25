@@ -6,7 +6,8 @@ needed to make the game actually reach and run gameplay.
 
 The European port (SLES-00326), PAL 60 Hz mode and attract-demo fixes are
 archived in the `eu-support-archive` branch. This branch supports the USA disc
-only.
+only; the USA disc's European frontend music playlist is still available with
+`--EU`.
 
 ## Requirements
 
@@ -64,6 +65,18 @@ iteration:
 ```bash
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/game.cue" --direct
 ```
+
+### Music selection
+
+The USA disc includes the European frontend playlist as playlist 6. By default
+the port uses the USA playlist; pass `--EU` to use the EU frontend music
+selection with the USA disc:
+
+```bash
+dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/Courier Crisis (USA).cue" --EU
+```
+
+This is a music selection only; European discs are still rejected.
 
 ### Europe
 
