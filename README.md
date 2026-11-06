@@ -15,7 +15,8 @@ recompiler.
 
 ## Play a release
 
-Download the latest release from the GitHub releases page:
+Download the latest release from the
+[releases page](https://github.com/salmon85/courier-crisis-recomp/releases):
 
 - **Windows:** `CourierCrisis-windows-x64.zip`
 - **Linux:** `CourierCrisis-linux-x86_64.AppImage`

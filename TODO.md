@@ -9,4 +9,5 @@
 - [x] GitHub Actions: nightly release on `master`, tagged release on `v*`
 - [x] Commit `CourierCrisisPort/generated/` so CI can build without the disc
 - [x] Local build and USA/EU disc validation
-- [ ] Tag `vX.Y.Z` when a version is ready to publish
+- [x] Tag `v0.1.0` for the first standalone release
+- [x] Resolve `.bin` paths saved by older settings files at boot
