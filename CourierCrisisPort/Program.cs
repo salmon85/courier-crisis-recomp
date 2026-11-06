@@ -1,39 +1,40 @@
-using System.Text;
-using RecompOne.Runtime.Cdrom;
+using CourierCrisis.Shared;
 using RecompOne.Runtime.Config;
 using RecompOne.Runtime.Memory;
 using Recompiled;
 
-// Use the disc passed on the command line, otherwise the first disc found next
-// to this port folder.
-var explicitCue = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
-var cue = explicitCue ?? FindDefaultCue();
-if (cue == null)
-{
-    Console.Error.WriteLine("USA disc cue not found");
-    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU]");
-    return 1;
-}
+// Keep settings, memory cards and mods out of the app folder: AppImage mounts
+// are read-only and a desktop launch may have an unrelated working directory.
+AppPaths.UseDataDirAsCurrent();
+RecompOne.Runtime.Runtime.DiscValidator = DiscValidation.Validate;
 
-cue = Path.GetFullPath(cue);
-if (!File.Exists(cue))
-{
-    Console.Error.WriteLine($"disc cue not found: {cue}");
-    Console.Error.WriteLine("usage: CourierCrisis [path/to/game.cue] [--direct] [--EU]");
-    return 1;
-}
-
-if (IsEuropeanCue(cue))
-{
-    Console.Error.WriteLine("European discs are not supported on this branch.");
-    Console.Error.WriteLine("The EU port and 60 Hz/demo fixes are archived in branch eu-support-archive.");
-    return 1;
-}
-
+var explicitPath = args.FirstOrDefault(a => !a.StartsWith("--", StringComparison.Ordinal));
 var direct = args.Any(a => a.Equals("--direct", StringComparison.OrdinalIgnoreCase));
 var euMusic = args.Any(a => a.Equals("--EU", StringComparison.OrdinalIgnoreCase));
 
-Settings.System.DiscPath = cue;
+string? cue = null;
+if (explicitPath != null)
+{
+    var problem = DiscValidation.Validate(explicitPath);
+    if (problem != null)
+    {
+        Console.Error.WriteLine(problem);
+        Console.Error.WriteLine("usage: CourierCrisis [path/to/game.bin|.cue|.chd] [--direct] [--EU]");
+        return 1;
+    }
+
+    cue = DiscSource.Resolve(explicitPath);
+}
+else
+{
+    cue = FindDefaultCue();
+    if (cue != null && DiscValidation.Validate(cue) != null)
+        cue = null;
+}
+
+if (cue != null)
+    Settings.System.DiscPath = cue;
+
 PortOptions.UseEuMusic = euMusic;
 
 // Courier Crisis predates the DualShock; its PAD buffer is only four bytes.
@@ -48,29 +49,13 @@ RecompOne.Runtime.Runtime.Run(() =>
 
 return 0;
 
-static bool IsEuropeanCue(string cue)
-{
-    try
-    {
-        using var fs = DiscFs.Open(cue);
-        var text = Encoding.ASCII.GetString(fs.ReadFile("SYSTEM.CNF"));
-        return text.Contains("SLES", StringComparison.OrdinalIgnoreCase) ||
-               text.Contains("SCES", StringComparison.OrdinalIgnoreCase) ||
-               text.Contains("SLED", StringComparison.OrdinalIgnoreCase) ||
-               text.Contains("SCED", StringComparison.OrdinalIgnoreCase) ||
-               fs.Exists("SLES_003.26");
-    }
-    catch
-    {
-        return false;
-    }
-}
-
 static string? FindDefaultCue()
 {
-    var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-    const string name = "Courier Crisis (USA).cue";
+    foreach (var dir in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+    {
+        var path = Path.Combine(dir, "Courier Crisis (USA).cue");
+        if (File.Exists(path)) return path;
+    }
 
-    var path = Path.Combine(root, name);
-    return File.Exists(path) ? path : null;
+    return null;
 }

@@ -2,12 +2,14 @@
 *.bin
 *.cue
 
-# Recompiled output and build artifacts (regenerate from your disc)
-CourierCrisisPort/generated/
-CourierCrisisPort/bin/
-CourierCrisisPort/obj/
+# Build artifacts
+**/bin/
+**/obj/
+publish/
+AppDir/
+*.AppImage
 
-# Runtime state
+# Runtime state (the release stores these in the per-user data dir)
 CourierCrisisPort/packs/
 CourierCrisisPort/mods/
 CourierCrisisPort/*.log

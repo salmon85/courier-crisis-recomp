@@ -1,4 +1,5 @@
 using System.Text;
+using CourierCrisis.Shared;
 using RecompOne.Runtime;
 using RecompOne.Runtime.Cdrom;
 using RecompOne.Runtime.Context;
@@ -31,7 +32,7 @@ public static class Entry
         Runtime.Initialize(title ?? "Courier Crisis");
         Runtime.WaitForValidDisc();
 
-        using var fs = DiscFs.Open(cuePath ?? Runtime.CdPath);
+        using var fs = DiscFs.Open(DiscSource.Resolve(cuePath ?? Runtime.CdPath));
         var cd = new CdController(fs, m);
         m.SetCd(cd);
 

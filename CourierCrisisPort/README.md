@@ -2,7 +2,8 @@
 
 A static recompilation of **Courier Crisis (USA, SLUS-00442)** into C# using
 [RecompOne](https://github.com/BlackLabelHQ/RecompOne), plus the runtime fixes
-needed to make the game actually reach and run gameplay.
+needed to make the game actually reach and run gameplay. A small cross-platform
+launcher asks for your disc and starts the game with the selected options.
 
 The European port (SLES-00326), PAL 60 Hz mode and attract-demo fixes are
 archived in the `eu-support-archive` branch. This branch supports the USA disc
@@ -11,10 +12,14 @@ only; the USA disc's European frontend music playlist is still available with
 
 ## Requirements
 
+To build:
+
 - .NET 10 SDK (the port targets `net10.0`)
-- Your own copy of `Courier Crisis (USA).bin` / `.cue`
 - `RecompOne` initialized as a submodule next to this folder (`../RecompOne`):
   `git submodule update --init --recursive` from the repository root
+
+To play a release: your own copy of `Courier Crisis (USA)` as `.bin`, `.cue` or
+`.chd`. No BIOS is required.
 
 ## Layout
 
@@ -23,17 +28,22 @@ CourierCrisisPort/
   config/
     Courier_Crisis.json       USA recompiler configuration
     funcmaps/                 USA function maps (main + GAME.EXE overlay)
-  generated/                  recompiled C# (derived from the disc; do not commit)
+  generated/                  recompiled C# (committed so CI can build releases)
   BootEntry.cs                USA boot loader
   Patches.cs                  draw-buffer wait and music-selection glue
   Program.cs                  entry point
   CourierCrisis.csproj        references RecompOne.Runtime
+../CourierCrisis.Shared/      disc path/validation + per-user data dir
+../CourierCrisisLauncher/     desktop launcher (disc picker, EU music, Launch)
 ```
 
 The boot executable is recompiled as the main image and `GAME.EXE` (loaded with
 `LoadExec`) as the overlay.
 
 ## Recompiling
+
+The committed `generated/` output was produced from the USA disc. Regenerate it
+if you change the recompiler config or the runtime.
 
 ```bash
 export DOTNET_ROOT=/path/to/dotnet10
@@ -59,8 +69,15 @@ dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/Courier Crisis (USA).cue"
 The game plays the boot logo and intro movie(s), then loads `GAME.EXE` and runs
 the frontend/demo. European cues are rejected with a clear error.
 
+For the release layout, build the launcher next to the game:
+
+```bash
+dotnet publish CourierCrisisPort/CourierCrisis.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64
+dotnet publish CourierCrisisLauncher/CourierCrisisLauncher.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64
+```
+
 `--direct` boots `GAME.EXE` immediately (skipping the intro) for faster
-iteration:
+iteration. The launcher forwards it to the game:
 
 ```bash
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/game.cue" --direct
@@ -69,8 +86,9 @@ dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/game.cue" --direct
 ### Music selection
 
 The USA disc includes the European frontend playlist as playlist 6. By default
-the port uses the USA playlist; pass `--EU` to use the EU frontend music
-selection with the USA disc:
+the port uses the USA playlist; tick **Use European music selection** in the
+launcher (or pass `--EU`) to use the EU frontend music selection with the USA
+disc:
 
 ```bash
 dotnet bin/Release/net10.0/CourierCrisis.dll "/path/to/Courier Crisis (USA).cue" --EU
@@ -162,8 +180,12 @@ large log.
 
 ## Notes
 
-- `generated/` contains code derived from the game disc. Regenerate it from your
-  own disc; do not redistribute it.
+- `generated/` contains code derived from the game disc. It is committed so
+  GitHub Actions can build release binaries; the release still requires your
+  own disc and does not include one. Do not redistribute the disc image.
 - The port uses RecompOne's OpenGL backend. On headless machines use
   `SDL_VIDEODRIVER=dummy` only for smoke tests; screenshots require a real or
   virtual X display.
+- Settings, memory cards, mods and the cue cache are stored in
+  `%LOCALAPPDATA%\CourierCrisis` (Windows) or `~/.local/share/CourierCrisis`
+  (Linux). Override with `COURIER_CRISIS_DATA_DIR`.
