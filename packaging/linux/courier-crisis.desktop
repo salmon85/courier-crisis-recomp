@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Courier Crisis
+Comment=Launch the Courier Crisis recompilation
+Exec=CourierCrisisLauncher
+Icon=courier-crisis
+Categories=Game;
+Terminal=false

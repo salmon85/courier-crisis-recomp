@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish CourierCrisisPort/CourierCrisis.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+          dotnet publish CourierCrisisLauncher/CourierCrisisLauncher.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
+
+      - name: Zip
+        shell: pwsh
+        run: Compress-Archive -Path publish/win-x64/* -DestinationPath CourierCrisis-windows-x64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: CourierCrisis-windows-x64.zip
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish
+        run: |
+          dotnet publish CourierCrisisPort/CourierCrisis.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64
+          dotnet publish CourierCrisisLauncher/CourierCrisisLauncher.csproj -c Release -r linux-x64 --self-contained true -o publish/linux-x64
+
+      - name: Build AppImage
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp -a publish/linux-x64/. AppDir/usr/bin/
+          cp packaging/linux/AppRun AppDir/AppRun
+          cp packaging/linux/courier-crisis.desktop AppDir/courier-crisis.desktop
+          cp packaging/courier-crisis.png AppDir/courier-crisis.png
+          chmod +x AppDir/AppRun
+          curl -fsSL -o appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run AppDir CourierCrisis-linux-x86_64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64
+          path: CourierCrisis-linux-x86_64.AppImage
+          if-no-files-found: error
+
+  release:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            CourierCrisis-windows-x64.zip
+            CourierCrisis-linux-x86_64.AppImage
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+      - name: Publish nightly release
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly
+          prerelease: true
+          make_latest: false
+          files: |
+            CourierCrisis-windows-x64.zip
+            CourierCrisis-linux-x86_64.AppImage
+          fail_on_unmatched_files: true
